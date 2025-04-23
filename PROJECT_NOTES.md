@@ -1,9 +1,9 @@
 # Malaysian Lead Generator Project Notes
 
 ## Project Overview
-The Malaysian Lead Generator is a tool designed to collect business contacts from various Malaysian sources and generate personalized outreach emails. The project is divided into distinct phases:
+The Malaysian Lead Generator is a tool designed to collect business contacts primarily via reliable data sources (APIs, open data) and supplement with targeted web scraping, then generate personalized outreach emails. The project is divided into distinct phases:
 
-1. **Lead Collection** - Scraping business contacts from websites
+1. **Lead Collection** - Acquiring business contacts (API-first, supplemented by scraping)
 2. **Email Generation** - Creating personalized outreach emails
 3. **Email Sending** - Automating the email sending process
 4. **Tracking & Analytics** - Monitoring response rates and campaign effectiveness
@@ -13,35 +13,15 @@ The Malaysian Lead Generator is a tool designed to collect business contacts fro
 8. **Agentive Frontend Integration** - Web-based user interface for the system
 
 ## Current Status
-We have completed a major reorganization of the project structure to follow Python best practices, creating a clean, modular package structure. The codebase is now organized into a proper Python package with clear separation of concerns and an improved directory layout.
+We have completed a major project reorganization to follow Python best practices, creating a clean, modular package structure within the lead_generator package.
 
-We have completed the implementation of Lead Collection (Phase 1), Email Generation (Phase 2), Email Sending functionality (Phase 3), and added Maintenance Utilities (Phase 5). We have significantly enhanced Security (Phase 6) with credential encryption, secure configuration management, enhanced API security, and robust input validation. We have integrated all components into a unified workflow with a comprehensive CLI interface and updated batch scripts.
+We have completed implementations for Email Generation (Phase 2), Email Sending (Phase 3 - including intelligent PDF proposal attachments), Maintenance Utilities (Phase 5 - including configurable cleanup), Security (Phase 6 - including recent enhancements like specific CORS, rate limiting, Pydantic validation, secure error handling, improved token handling), and n8n Workflow Automation (Phase 7 - including API layer and workflows). All functional components are integrated via a comprehensive CLI and the n8n API.
 
-We have successfully completed the development of the n8n Workflow Automation layer (Phase 7), including a robust API service layer connecting the Python backend with n8n. This integration provides a powerful workflow automation platform for lead management, email outreach, and performance analytics while maintaining the flexibility of our Python backend.
+Lead Collection (Phase 1) infrastructure (scrapers, CLI integration) exists but faces significant reliability challenges.
 
-We have enhanced the Email Sending functionality with PDF proposal attachments, allowing users to send personalized proposals with their outreach emails. This includes both a command-line interface and n8n workflow implementation for attaching PDFs from individual files or directories. The latest addition is an intelligent package-based proposal selection system that automatically matches the most appropriate proposal to leads based on their organization type and characteristics.
+Initial progress on the Agentive Frontend Integration (Phase 8) API foundation is complete, but UI development is pending.
 
-We have significantly improved the Maintenance & Utilities phase with a comprehensive cleanup system that efficiently manages temporary files, including emails, cache, and logs. This includes a user-friendly batch interface and a robust Python implementation with configurable retention periods.
-
-We have made initial progress on the Agentive Frontend Integration (Phase 8), having established the API foundation and defined database models to support frontend requirements. However, the actual web interface implementation is still pending.
-
-**Recent Security Improvements**: We've significantly enhanced the project's security posture by:
-1. Implementing specific CORS configurations instead of wildcards
-2. Adding comprehensive rate limiting on the API
-3. Creating extensive Pydantic models for input validation and sanitization
-4. Improving error handling to prevent information leakage in production
-5. Strengthening authentication with more secure token handling
-
-**Recent Project Reorganization**: We've completely restructured the project to:
-1. Organize the codebase into a proper Python package with clear separation of concerns
-2. Create a modular directory structure that follows Python best practices
-3. Centralize all core functionality within the `lead_generator` package
-4. Separate scripts and utilities from core functionality
-5. Clean up duplicate files and organize supporting materials
-6. Update import paths and file references to reflect the new structure
-7. Improve maintainability and extensibility through better organization
-
-**Important Note:** While the overall workflow functions correctly with test data, we are still encountering significant challenges with the actual web scraping components. These include frequent 403 Forbidden errors, inconsistent HTML parsing, and difficulty extracting contact information from certain websites. Resolving these scraping issues is now our top priority.
+**Important Note:** While the surrounding infrastructure (API, email logic, n8n workflows, security) is robust and functions correctly with test data, the core challenge remains reliable lead acquisition. The original web scraping approach faces persistent blocking and parsing issues. Therefore, the immediate top priority is pivoting the data acquisition strategy towards more reliable API-based sources, using scraping techniques primarily for targeted enrichment where feasible.
 
 ## Project Structure
 ```
@@ -94,8 +74,8 @@ We have made initial progress on the Agentive Frontend Integration (Phase 8), ha
 │   ├── fix_imports.py         # Utility to fix import statements
 ├── proposals/                 # Directory for PDF proposal files
 ├── n8n_workflows/             # Directory containing n8n workflow exports
-│   ├── lead_scraping.json     # Lead scraping workflow
-│   ├── email_generation.json  # Email generation workflow 
+│   ├── lead_scraping.json     # Lead scraping workflow (To be refocused on API/Enrichment)
+│   ├── email_generation.json  # Email generation workflow
 │   ├── email_sending.json     # Email sending workflow
 │   ├── email_sending_with_proposals.json  # Email sending with PDF attachments workflow
 │   ├── analytics.json         # Analytics and reporting workflow
@@ -114,206 +94,102 @@ We have made initial progress on the Agentive Frontend Integration (Phase 8), ha
 ## Completed Tasks
 
 ### Project Reorganization Phase (COMPLETED)
-1. ✅ Reorganized the project into a proper Python package structure
+1. ✅ Reorganized the project into a proper Python package structure (lead_generator)
 2. ✅ Created a clean, modular directory structure following Python best practices
-3. ✅ Moved all core functionality into the `lead_generator` package
-4. ✅ Separated utility scripts into a dedicated `scripts` directory
+3. ✅ Moved all core functionality into the lead_generator package
+4. ✅ Separated utility scripts into a dedicated scripts directory
 5. ✅ Updated import paths and file references to work with new structure
-6. ✅ Created appropriate `__init__.py` files to make the directories proper Python packages
+6. ✅ Created appropriate __init__.py files
 7. ✅ Removed duplicate files and cleaned up the project structure
 
-### Lead Collection Phase (PARTIALLY COMPLETED)
-1. ✅ Implemented multiple scrapers for different sources:
-   - YellowPages/BusinessList.my scraper
-   - Government ministry websites scraper
-   - University websites scraper
-2. ✅ Added anti-blocking measures (delays, headers)
-3. ✅ Implemented contact extraction with multiple strategies
-4. ✅ Created command-line interface and batch scripts
-5. ✅ Added logging and error handling
-6. ❌ Ongoing issues with reliable scraping from target websites:
-   - Frequent 403 Forbidden errors despite anti-blocking measures
-   - Inconsistent HTML parsing due to dynamic content
-   - Difficulty extracting structured contact information
+### Lead Collection Phase (Infrastructure COMPLETED, Data Acquisition PARTIALLY COMPLETED)
+1. ✅ Implemented multiple scrapers (YellowPages, Gov, Uni)
+2. ✅ Added basic anti-blocking measures (delays, headers)
+3. ✅ Implemented basic contact extraction strategies
+4. ✅ Created command-line interface and batch scripts for scraping
+5. ✅ Added logging and error handling for scraping
+6. ❌ (MAJOR ISSUE) Ongoing issues with reliable scraping (403s, parsing errors)
 
 ### Email Generation Phase (COMPLETED)
-1. ✅ Created `email_generator.py` with template loading and personalization
-2. ✅ Implemented multiple email templates with different tones:
-   - `default.json` - General business outreach
-   - `government.json` - Government agency outreach
-   - `university.json` - University/academic outreach
-   - `retreat.json` - Strategic retreat planning focus
-   - `cost.json` - Cost optimization focus
-   - `exec_tone.json` - Executive-level formal communication
-3. ✅ Built cache system for deduplication and generation limits
-4. ✅ Created SQLite schema for storing leads and email generations
-5. ✅ Implemented database queries for persistence
+1. ✅ Created email_generator.py with template loading and personalization
+2. ✅ Implemented multiple email templates (prompts/)
+3. ✅ Built cache system (utils/cache.py)
+4. ✅ Created SQLite schema (database/models.py)
+5. ✅ Implemented database queries (database/queries.py)
 
 ### Email Sending Phase (COMPLETED)
-1. ✅ Created `email_config.py` for SMTP settings and email configurations
-2. ✅ Implemented `email_sender.py` with the following features:
-   - SMTP connection management
-   - Rate limiting and throttling
-   - Batch processing with retries
-   - Error handling and logging
-   - Template support
-   - PDF proposal attachment support
-3. ✅ Added `email_validator.py` for validating email addresses
-4. ✅ Created comprehensive test suite for email sender module
-5. ✅ Added proposal attachment functionality:
-   - Support for attaching one or multiple PDF files to emails
-   - File size validation and existence checking
-   - Directory-based proposal selection
-   - Proper logging and error handling for attachments
-6. ✅ Implemented intelligent package-based proposal selection:
-   - Organization type detection (corporate, government, university, school)
-   - Package type selection based on lead characteristics
-   - Template-based proposal matching
-   - Fallback mechanism for missing variants
+1. ✅ Created email_config.py
+2. ✅ Implemented email_sender.py (SMTP, rate limiting, batching, retries, attachments)
+3. ✅ Added email_validator.py
+4. ✅ Created tests for email sender
+5. ✅ Implemented intelligent package-based proposal selection
 
 ### Integration Phase (COMPLETED)
-1. ✅ Updated `main.py` to integrate all components:
-   - Added database import functionality
-   - Implemented email generation workflow
-   - Added email sending capabilities
-   - Created comprehensive CLI interface with argument groups
-   - Added proposal attachment options for email sending
-2. ✅ Updated `run_scraper.bat` with new options:
-   - Added email generation options
-   - Added database import option
-   - Created full workflow option (scrape + generate + preview)
-   - Added proposal attachment option for email sending
-   - Improved user feedback and instructions
-3. ✅ Created a seamless workflow from lead collection to email sending
+1. ✅ Updated main.py to integrate core components
+2. ✅ Updated batch scripts (run_lead_generator.bat) for integrated workflow
+3. ✅ Established workflow from (test) lead data to email sending
 
 ### Maintenance & Utilities Phase (COMPLETED)
-1. ✅ Added system maintenance tools:
-   - Created `cleanup_temp_files.py` for removing temporary files
-   - Implemented `cleanup_temp_files.bat` for easy access to cleanup functions
-   - Added functionality to clean email drafts, logs, and cache
-   - Implemented configurable retention periods for different file types
-   - Added intelligent cache cleaning that preserves structure while removing old data
-2. ✅ Developed testing and development utilities:
-   - Added `test_data.py` for generating sample lead data
-   - Created `fix_imports.py` for resolving import issues
-3. ✅ Enhanced error handling and diagnostics:
-   - Added detailed logging for scraping operations
-   - Improved error messages for common issues
-   - Implemented backup creation before cache resets
+1. ✅ Created cleanup_temp_files.py and cleanup_temp_files.bat
+2. ✅ Implemented configurable retention and intelligent cache cleaning
+3. ✅ Added test_data.py, fix_imports.py
+4. ✅ Enhanced error handling and backup creation
 
 ### Security & Compliance Phase (COMPLETED)
-1. ✅ Implemented secure credential management:
-   - Created `secure_config.py` for handling sensitive data
-   - Added encryption for credentials using industry-standard algorithms
-   - Implemented credential vault with master password protection
-2. ✅ Enhanced configuration security:
-   - Updated `email_config.py` to use secure credential storage
-   - Created fallback mechanisms for compatibility
-   - Added environment variable support with dotenv integration
-3. ✅ Added security tools and documentation:
-   - Developed `manage_credentials.py` utility for credential management
-   - Created comprehensive `SECURITY.md` guide
-   - Added `.env.template` for secure environment setup
-4. ✅ Implemented credential rotation and access controls:
-   - Added ability to update credentials securely
-   - Implemented proper permission handling for sensitive files
-   - Created configuration hierarchy to prioritize secure sources
-5. ✅ Enhanced API security:
-   - Restricted CORS to specific origins instead of wildcards
-   - Added rate limiting middleware with IP-based tracking
-   - Implemented comprehensive Pydantic models for input validation
-   - Added sanitization to prevent injection attacks
-   - Created secure error handling that prevents information leakage
+1. ✅ Implemented secure credential management (secure_config.py, encryption, vault)
+2. ✅ Enhanced configuration security (dotenv, fallback)
+3. ✅ Added manage_credentials.py, SECURITY.md, .env.template
+4. ✅ Implemented credential rotation/access control considerations
+5. ✅ Recent Enhancements: Restricted CORS, added API rate limiting, Pydantic validation, secure error handling, improved token handling
 
 ### n8n Workflow Automation Phase (COMPLETED)
-1. ✅ Developed API Service Layer:
-   - Created `api_service.py` to connect API endpoints with core functionality
-   - Implemented methods for lead management, email generation, and dashboard statistics
-   - Added robust error handling and logging
-2. ✅ Enhanced Database Models:
-   - Added `DashboardStats` model for analytics tracking
-   - Extended `LeadStatus` enumeration with new statuses (booked, closed, ghosted)
-   - Implemented relationship tracking between models
-3. ✅ Created API Routes with FastAPI:
-   - Implemented endpoints for leads, emails, and dashboard statistics 
-   - Added authentication and permission checking
-   - Included proper error handling and validation
-4. ✅ Developed n8n Workflows:
-   - Created lead scraping workflow for data collection
-   - Implemented email generation and review workflows
-   - Developed email sending and follow-up automation
-   - Built analytics and reporting dashboards
-   - Added specialized workflow for sending emails with PDF proposals
-5. ✅ Implemented Security Measures:
-   - Added JWT-based authentication for API access
-   - Set up secure credential handling for n8n
-   - Implemented role-based permission system
-6. ✅ Created Testing Infrastructure:
-   - Developed `test_api.py` for verifying API functionality
-   - Added documentation for testing and troubleshooting
-   - Implemented comprehensive test cases for n8n workflows
+1. ✅ Developed API Service Layer (api/api_service.py, api/routes.py, api/app.py)
+2. ✅ Enhanced Database Models (database/models.py - DashboardStats, LeadStatus)
+3. ✅ Created API Routes with FastAPI (including auth, validation)
+4. ✅ Developed n8n Workflows (n8n_workflows/) for core processes
+5. ✅ Implemented Security Measures (JWT, secure n8n creds, RBAC concept)
+6. ✅ Created basic API testing infrastructure (api/tests/test_api.py)
 
 ## Current Issues and Limitations
-- **Major Scraping Issues:**
-  - Persistent 403 Forbidden errors on BusinessList.my and YellowPages.my
-  - Unreliable extraction of contact details from government websites
-  - HTML parsing failures due to website structure changes
-  - Low success rate of obtaining valid business contacts
-- Workflow functions correctly with test data but struggles with real-time scraping
-- The n8n integration requires separate installation and configuration of n8n
-- Initial setup of the API connection and workflows requires some technical knowledge
-- **Incomplete Test Suite:**
-  - Some test modules are still empty or partially implemented
-  - Missing integration tests between components
-  - End-to-end testing not fully implemented
-- **Web Frontend Not Implemented:**
-  - API layer exists but lacks a user-friendly interface
-  - Users still rely on batch files and command-line for operation
+- **Major Data Acquisition Issues**:
+  - Core Problem: The current web scraping approach is unreliable and fails frequently (403s, parsing errors) against real-world targets.
+  - Low success rate of obtaining valid business contacts via scraping.
+  - Workflow functions correctly with test data but lacks reliable real data input.
+- n8n integration requires separate setup.
+- **Incomplete Test Suite**: Missing comprehensive unit, integration, and end-to-end tests.
+- **Web Frontend Not Implemented**: System currently relies on CLI/batch files and n8n UI.
 
-## Next Steps
+## Next Steps (Revised Priorities)
 
-1. **Fix Scraping Functionality** (HIGHEST PRIORITY)
-   - Implement more robust anti-blocking measures:
-     - Add proxy rotation capabilities
-     - Create more realistic browser fingerprinting
-     - Implement exponential backoff on 403 errors
-   - Develop alternative scraping strategies:
-     - Consider using a headless browser approach (Selenium/Playwright)
-     - Investigate API-based alternatives where available
-     - Create fallback mechanisms when primary sources fail
-   - Enhance error recovery:
-     - Implement session persistence to resume interrupted scraping jobs
-     - Add checkpointing to avoid duplicate work after failures
+### PRIORITY 1: Data Acquisition Pivot & Stabilization (HIGHEST PRIORITY)
+1. **Research & Identify Reliable Data Sources**: Aggressively investigate API providers (e.g., Clearbit, Apollo, OpenCorporates, relevant government APIs) and reliable open data sources for Malaysian business information. Evaluate coverage, quality, cost, and terms of service.
+2. **Implement API Integrations (POC)**: Select 1-2 promising API sources and build proof-of-concept integrations to fetch base lead data reliably.
+3. **Refactor Backend for API-First**: Adjust database models (database/models.py) and core logic to primarily handle data ingested from APIs. Define fields for potential enrichment data.
+4. **Re-evaluate Scraping (Targeted Enrichment Only)**:
+   - Select one specific scraping target where enrichment data might be valuable and potentially feasible.
+   - Experiment with one advanced technique (e.g., Playwright/Selenium with rotating residential proxies) as a POC strictly for enrichment.
+   - If POC fails or proves too costly/unreliable, significantly deprioritize or remove scraping efforts.
+5. **Stabilize Core Workflow with API Data**: Ensure the entire existing pipeline (DB storage, email generation, proposal matching, n8n workflows) functions smoothly using data acquired via APIs. Update n8n_workflows/lead_scraping.json to reflect the API-first approach.
 
-2. **Complete Database Security**
-   - Implement parameterized queries for all database operations
-   - Add audit logging to track database operations
-   - Implement proper transactions for data integrity
-   - Enhance database error handling with secure fallbacks
+### PRIORITY 2: Agentive Frontend Integration (UI Development)
+(Contingent on successful data acquisition in Priority 1)
+1. **Implement Frontend**: Build the user-friendly web interface using Lovable or another suitable modern framework based on the established "Agentive Frontend Integration Roadmap".
+2. **Connect Frontend to API**: Integrate the UI with the existing FastAPI backend (lead_generator/api/).
+3. **Develop Core UI Features**: Implement dashboard, lead management, email campaign management, proposal selection UI, and analytics visualization.
+4. **Usability Testing**: Conduct testing to ensure the UI is intuitive and meets user needs.
 
-3. **Implement Agentive Frontend Integration**
-   - Create a user-friendly web interface using a modern framework
-   - Implement dashboard visualizations for analytics
-   - Build lead management interfaces with filtering and sorting
-   - Add email review and approval workflows with templates
-   - Include proposal management and attachment functionality in the UI
-   - Connect the frontend to the existing API layer
+### PRIORITY 3: Enhance Core Features & Testing
+1. **Complete Test Suite**: Implement comprehensive unit, integration (API <> Backend, Service <> DB), and end-to-end tests. Add security-focused tests (input validation, auth checks). Achieve high test coverage.
+2. **Enhance Email Campaign Tracking**: Implement open/click/response tracking mechanisms. Develop detailed performance reporting and analytics.
+3. **Complete n8n Workflow Integration**: Refine existing workflows, improve error handling within n8n, create documentation for workflow usage, enhance proposal matching logic if needed.
 
-4. **Complete Test Suite Implementation**
-   - Finish unit tests for all modules, particularly email generation and validation
-   - Implement integration tests between components (scraper → database → email generation)
-   - Create end-to-end tests for complete workflow execution
-   - Add test coverage reporting and automated test runs
-   - Add security-focused tests for input validation and authorization
-
-5. **Enhance Email Campaign Tracking**
-   - Implement open tracking via tracking pixels in email templates
-   - Add click-through tracking for links in emails
-   - Create response tracking with email thread identification
-   - Develop detailed reporting on campaign performance metrics
-   - Add tracking for proposal attachment interactions
+### PRIORITY 4: Strategic Expansion & Security Hardening
+1. **Further Security Enhancements**: Implement comprehensive database security (parameterized queries everywhere, audit logging, transactions). Conduct dependency vulnerability scanning (pip-audit). Add more granular authorization checks.
+2. **Create Comprehensive Documentation**: Write detailed user guides, API documentation, deployment guides, and troubleshooting information.
+3. **Future Consideration (Post-Stabilization)**: Evaluate expanding the scope (e.g., global data sources) based primarily on the availability and feasibility of reliable API data sources in new regions.
 
 ## n8n Workflow Automation Integration
+(This section remains largely the same as it describes the completed integration, but the context now assumes data primarily comes from APIs)
 
 The n8n integration has been completed, providing a powerful workflow automation platform while preserving the robust Python backend for core functionality. This approach offers the best of both worlds: a powerful backend with flexible, visual workflow automation.
 
@@ -337,7 +213,7 @@ The integration includes the following components:
    - Error handling and validation
 
 4. **n8n Workflows**
-   - Lead scraping workflow with scheduling options
+   - Lead scraping workflow with scheduling options (to be refocused on API/Enrichment)
    - Email generation workflow with template selection
    - Email sending workflow with rate limiting and tracking
    - Email sending with proposals workflow for attachment handling
@@ -404,11 +280,11 @@ We've significantly improved the security posture of the Malaysian Lead Generato
 These security enhancements bring the codebase in line with production-grade standards, following a defense-in-depth approach with multiple layers of protection.
 
 ---
-*Last updated: July 3, 2023*
+*Last updated: June 5, 2025*
 
 # Agentive Frontend Integration Roadmap
 
-The Agentive Frontend integration will provide a user-friendly web-based interface for the Malaysian Lead Generator system, making it accessible to non-technical users while maintaining the robust Python backend functionality.
+**Note**: This frontend development is now Priority 2 in the project plan, to be commenced after the successful pivot to reliable API-based data acquisition (Priority 1).
 
 ## Separation of Concerns
 
@@ -418,7 +294,7 @@ The integration follows a clear separation of concerns:
    - Core business logic
    - Data processing and storage
    - Email generation and sending
-   - Web scraping and lead collection
+   - API-based lead acquisition with targeted web scraping enrichment
 
 2. **Frontend (Agentive)**
    - User interface and experience
@@ -428,22 +304,22 @@ The integration follows a clear separation of concerns:
 
 ## Implementation Plan
 
-The implementation will proceed in the following phases:
+The implementation will proceed after Priority 1 is substantially complete:
 
-1. **API Layer Enhancement** (Completed)
+1. **API Layer Enhancement** (Completed - verification may be needed post-Priority 1 refactor)
    - Extend existing FastAPI routes to support all frontend needs
    - Implement comprehensive authentication and authorization
    - Add pagination, filtering, and sorting capabilities
    - Ensure proper error handling and validation
 
-2. **User Interface Development** (Next Priority)
+2. **User Interface Development** (Current Priority - Phase 2)
    - Create responsive dashboard layout
    - Implement lead management interfaces
    - Build email campaign management screens
    - Design analytics and reporting visualizations
    - Develop user and permission management
 
-3. **Workflow Integration**
+3. **Workflow Integration within UI**
    - Create guided workflows for common tasks
    - Implement drag-and-drop email template customization
    - Add proposal attachment selection interface
