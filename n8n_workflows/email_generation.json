@@ -1,0 +1,473 @@
+{
+  "name": "Email Generation Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "startTime": "09:00",
+              "interval": 12
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/api/v1/auth/token",
+        "authentication": "genericCredentialType",
+        "genericCredentialType": "lead-generator-api",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "username",
+              "value": "={{ $credentials.username }}"
+            },
+            {
+              "name": "password",
+              "value": "={{ $credentials.password }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Get API Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        500,
+        300
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "1",
+          "name": "Lead Generator API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract the token from the response\nconst token = $input.item.json.access_token;\nreturn { token };"
+      },
+      "name": "Extract Token",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        750,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:8000/api/v1/leads?status=new",
+        "authentication": "genericCredentialType",
+        "genericCredentialType": "lead-generator-api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $node[\"Extract Token\"].json[\"token\"] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Get New Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "name": "Process Leads",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 2.1,
+      "position": [
+        1250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "templateName",
+              "value": "={{\"default\"}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Default Template",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [
+        1500,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "templateName",
+              "value": "={{\"government\"}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Government Template",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [
+        1500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "templateName",
+              "value": "={{\"university\"}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "University Template",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [
+        1500,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.source_url }}",
+              "operation": "contains",
+              "value2": "gov.my"
+            }
+          ]
+        }
+      },
+      "name": "Is Government?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1750,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.source_url }}",
+              "operation": "contains",
+              "value2": "edu.my"
+            }
+          ]
+        }
+      },
+      "name": "Is University?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1750,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "mergeByPosition"
+      },
+      "name": "Combine Template Info",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [
+        2000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://localhost:8000/api/v1/emails/generate",
+        "authentication": "genericCredentialType",
+        "genericCredentialType": "lead-generator-api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $node[\"Extract Token\"].json[\"token\"] }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "lead_id",
+              "value": "={{ $json.id }}"
+            },
+            {
+              "name": "template_name",
+              "value": "={{ $json.templateName }}"
+            },
+            {
+              "name": "custom_variables",
+              "value": "={ \"industry\": \"your industry\" }"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Generate Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "sheetName": "Generated Emails",
+        "options": {
+          "skipEmptyCells": true
+        }
+      },
+      "name": "Record in Spreadsheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        2500,
+        300
+      ],
+      "executeOnce": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "2",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "channel",
+        "text": "=📧 New Email Generated\n\nFor: {{ $json.organization }} ({{ $json.person_name }})\nTemplate: {{ $json.templateName }}\nSubject: {{ $json.subject }}\n\nView in Dashboard: http://localhost:8000/emails/{{ $json.generation_id }}",
+        "otherOptions": {}
+      },
+      "name": "Send Notification",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [
+        2750,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get API Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get API Token": {
+      "main": [
+        [
+          {
+            "node": "Extract Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Token": {
+      "main": [
+        [
+          {
+            "node": "Get New Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get New Leads": {
+      "main": [
+        [
+          {
+            "node": "Process Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Leads": {
+      "main": [
+        [
+          {
+            "node": "Is Government?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Template": {
+      "main": [
+        [
+          {
+            "node": "Combine Template Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Government Template": {
+      "main": [
+        [
+          {
+            "node": "Combine Template Info",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "University Template": {
+      "main": [
+        [
+          {
+            "node": "Combine Template Info",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Is Government?": {
+      "main": [
+        [
+          {
+            "node": "Government Template",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is University?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is University?": {
+      "main": [
+        [
+          {
+            "node": "University Template",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Default Template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Template Info": {
+      "main": [
+        [
+          {
+            "node": "Generate Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Email": {
+      "main": [
+        [
+          {
+            "node": "Record in Spreadsheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record in Spreadsheet": {
+      "main": [
+        [
+          {
+            "node": "Send Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {},
+  "staticData": null,
+  "tags": [
+    {
+      "id": 1,
+      "name": "Lead Generator",
+      "color": "#00ff00"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2023-04-17T14:45:00.000Z",
+  "versionId": "1"
+} 

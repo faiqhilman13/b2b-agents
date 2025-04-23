@@ -1,0 +1,89 @@
+# Malaysian Lead Generator .gitignore
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.template
+lead_generator/config/.secure/
+*.pem
+*.key
+
+# SSH keys
+"make new file"
+"make new file.pub"
+
+# Virtual environment
+venv/
+env/
+ENV/
+virtualenv/
+.venv/
+
+# Temporary files
+*.log
+*.tmp
+emails/*.txt
+emails/
+logs/
+cache/
+backup/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE specific files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+.spyderproject
+.spyproject
+.ropeproject
+.project
+.pydevproject
+.settings/
+
+# PDF proposals (may contain proprietary information)
+# Uncomment if you don't want to include these
+# proposals/*.pdf
+# proposals/
+
+# n8n credentials (if stored in the project)
+n8n-data/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints 

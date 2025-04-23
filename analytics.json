@@ -1,0 +1,430 @@
+{
+  "name": "Analytics & Reporting Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "startTime": "00:01",
+              "interval": 1
+            }
+          ]
+        }
+      },
+      "name": "Daily Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:8000/api/v1/auth/token",
+        "authentication": "genericCredentialType",
+        "genericCredentialType": "lead-generator-api",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "username",
+              "value": "={{ $credentials.username }}"
+            },
+            {
+              "name": "password",
+              "value": "={{ $credentials.password }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Get API Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        500,
+        300
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "1",
+          "name": "Lead Generator API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extract the token from the response\nconst token = $input.item.json.access_token;\nreturn { token };"
+      },
+      "name": "Extract Token",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        750,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:8000/api/v1/stats/daily",
+        "authentication": "genericCredentialType",
+        "genericCredentialType": "lead-generator-api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $node[\"Extract Token\"].json[\"token\"] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Get Daily Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "sheetName": "Daily Stats",
+        "options": {
+          "skipEmptyCells": true
+        }
+      },
+      "name": "Record Daily Stats",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1250,
+        300
+      ],
+      "executeOnce": false,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "2",
+          "name": "Google Sheets Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:8000/api/v1/stats/campaign?days=30",
+        "authentication": "genericCredentialType",
+        "genericCredentialType": "lead-generator-api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $node[\"Extract Token\"].json[\"token\"] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Get Campaign Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:8000/api/v1/stats/source-performance",
+        "authentication": "genericCredentialType",
+        "genericCredentialType": "lead-generator-api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $node[\"Extract Token\"].json[\"token\"] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Get Source Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1500,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:8000/api/v1/stats/template-performance",
+        "authentication": "genericCredentialType",
+        "genericCredentialType": "lead-generator-api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $node[\"Extract Token\"].json[\"token\"] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Get Template Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1500,
+        700
+      ]
+    },
+    {
+      "parameters": {
+        "content": "=# Malaysian Lead Generator: Daily Report ({{ $node[\"Get Daily Stats\"].json.date }})\n\n## Daily Summary\n- **New Leads**: {{ $node[\"Get Daily Stats\"].json.new_leads }}\n- **Emails Generated**: {{ $node[\"Get Daily Stats\"].json.emails_generated }}\n- **Emails Sent**: {{ $node[\"Get Daily Stats\"].json.emails_sent }}\n- **Responses Received**: {{ $node[\"Get Daily Stats\"].json.responses }}\n- **Meetings Booked**: {{ $node[\"Get Daily Stats\"].json.meetings_booked }}\n\n## 30-Day Campaign Performance\n\n| Metric | Value |\n|--------|-------|\n| Total Leads | {{ $node[\"Get Campaign Stats\"].json.total_leads }} |\n| Total Emails Sent | {{ $node[\"Get Campaign Stats\"].json.total_emails_sent }} |\n| Open Rate | {{ $node[\"Get Campaign Stats\"].json.open_rate }}% |\n| Response Rate | {{ $node[\"Get Campaign Stats\"].json.response_rate }}% |\n| Meeting Booking Rate | {{ $node[\"Get Campaign Stats\"].json.meeting_rate }}% |\n| Avg. Time to Response | {{ $node[\"Get Campaign Stats\"].json.avg_time_to_response }} hours |\n\n## Source Performance\n\n| Source | Leads | Response Rate | Meeting Rate | Quality Score |\n|--------|-------|---------------|--------------|---------------|\n{{#each $node[\"Get Source Stats\"].json.sources}}\n| {{this.name}} | {{this.leads}} | {{this.response_rate}}% | {{this.meeting_rate}}% | {{this.quality_score}} |\n{{/each}}\n\n## Template Performance\n\n| Template | Sent | Opens | Responses | Meetings | Performance Score |\n|----------|------|-------|-----------|----------|-------------------|\n{{#each $node[\"Get Template Stats\"].json.templates}}\n| {{this.name}} | {{this.sent}} | {{this.open_rate}}% | {{this.response_rate}}% | {{this.meeting_rate}}% | {{this.score}} |\n{{/each}}\n\n## Recommendations\n\n{{#each $node[\"Get Campaign Stats\"].json.recommendations}}\n- {{this}}\n{{/each}}",
+        "additionalFields": {}
+      },
+      "name": "Generate Report",
+      "type": "n8n-nodes-base.markdown",
+      "typeVersion": 1,
+      "position": [
+        1750,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fileName": "=lead_generator_report_{{ $node[\"Get Daily Stats\"].json.date }}.pdf",
+        "options": {}
+      },
+      "name": "Create PDF",
+      "type": "n8n-nodes-base.pdfCreate",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "to": "team@example.com",
+        "subject": "=Lead Generator Report: {{ $node[\"Get Daily Stats\"].json.date }}",
+        "text": "=Daily lead generation and email campaign report attached.\n\nHighlights:\n- New Leads: {{ $node[\"Get Daily Stats\"].json.new_leads }}\n- Emails Sent: {{ $node[\"Get Daily Stats\"].json.emails_sent }}\n- Responses: {{ $node[\"Get Daily Stats\"].json.responses }}\n- Meetings: {{ $node[\"Get Daily Stats\"].json.meetings_booked }}\n\nSee attached report for full details.",
+        "attachments": "={{ $node[\"Create PDF\"].json.fileName }}",
+        "options": {}
+      },
+      "name": "Email Report",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        2250,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "3",
+          "name": "SMTP Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "title": "=Lead Generator Report: {{ $node[\"Get Daily Stats\"].json.date }}",
+        "message": "=# Key Metrics\n\n- **New Leads**: {{ $node[\"Get Daily Stats\"].json.new_leads }}\n- **Emails Sent**: {{ $node[\"Get Daily Stats\"].json.emails_sent }}\n- **Responses**: {{ $node[\"Get Daily Stats\"].json.responses }}\n- **Meetings**: {{ $node[\"Get Daily Stats\"].json.meetings_booked }}\n\nReport was sent to the team.",
+        "notificationType": "info"
+      },
+      "name": "Send Dashboard Notification",
+      "type": "n8n-nodes-base.n8nNotification",
+      "typeVersion": 1,
+      "position": [
+        2500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "-1001234567890",
+        "text": "=📊 *Lead Generator Report: {{ $node[\"Get Daily Stats\"].json.date }}*\n\n• New Leads: {{ $node[\"Get Daily Stats\"].json.new_leads }}\n• Emails Sent: {{ $node[\"Get Daily Stats\"].json.emails_sent }}\n• Responses: {{ $node[\"Get Daily Stats\"].json.responses }}\n• Meetings Booked: {{ $node[\"Get Daily Stats\"].json.meetings_booked }}\n\n*Best Performing Template:* {{ $node[\"Get Template Stats\"].json.best_template }}\n*Best Lead Source:* {{ $node[\"Get Source Stats\"].json.best_source }}",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "name": "Send Telegram Message",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        2500,
+        500
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "4",
+          "name": "Telegram Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get API Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get API Token": {
+      "main": [
+        [
+          {
+            "node": "Extract Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Token": {
+      "main": [
+        [
+          {
+            "node": "Get Daily Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Daily Stats": {
+      "main": [
+        [
+          {
+            "node": "Record Daily Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Daily Stats": {
+      "main": [
+        [
+          {
+            "node": "Get Campaign Stats",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Source Stats",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Template Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Campaign Stats": {
+      "main": [
+        [
+          {
+            "node": "Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Source Stats": {
+      "main": [
+        [
+          {
+            "node": "Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Template Stats": {
+      "main": [
+        [
+          {
+            "node": "Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Report": {
+      "main": [
+        [
+          {
+            "node": "Create PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create PDF": {
+      "main": [
+        [
+          {
+            "node": "Email Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Report": {
+      "main": [
+        [
+          {
+            "node": "Send Dashboard Notification",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Telegram Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {},
+  "staticData": null,
+  "tags": [
+    {
+      "id": 1,
+      "name": "Lead Generator",
+      "color": "#00ff00"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2023-04-17T15:15:00.000Z",
+  "versionId": "1"
+} 
