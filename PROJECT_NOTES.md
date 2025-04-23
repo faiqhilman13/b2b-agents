@@ -13,6 +13,8 @@ The Malaysian Lead Generator is a tool designed to collect business contacts fro
 8. **Agentive Frontend Integration** - Web-based user interface for the system
 
 ## Current Status
+We have completed a major reorganization of the project structure to follow Python best practices, creating a clean, modular package structure. The codebase is now organized into a proper Python package with clear separation of concerns and an improved directory layout.
+
 We have completed the implementation of Lead Collection (Phase 1), Email Generation (Phase 2), Email Sending functionality (Phase 3), and added Maintenance Utilities (Phase 5). We have significantly enhanced Security (Phase 6) with credential encryption, secure configuration management, enhanced API security, and robust input validation. We have integrated all components into a unified workflow with a comprehensive CLI interface and updated batch scripts.
 
 We have successfully completed the development of the n8n Workflow Automation layer (Phase 7), including a robust API service layer connecting the Python backend with n8n. This integration provides a powerful workflow automation platform for lead management, email outreach, and performance analytics while maintaining the flexibility of our Python backend.
@@ -30,79 +32,95 @@ We have made initial progress on the Agentive Frontend Integration (Phase 8), ha
 4. Improving error handling to prevent information leakage in production
 5. Strengthening authentication with more secure token handling
 
+**Recent Project Reorganization**: We've completely restructured the project to:
+1. Organize the codebase into a proper Python package with clear separation of concerns
+2. Create a modular directory structure that follows Python best practices
+3. Centralize all core functionality within the `lead_generator` package
+4. Separate scripts and utilities from core functionality
+5. Clean up duplicate files and organize supporting materials
+6. Update import paths and file references to reflect the new structure
+7. Improve maintainability and extensibility through better organization
+
 **Important Note:** While the overall workflow functions correctly with test data, we are still encountering significant challenges with the actual web scraping components. These include frequent 403 Forbidden errors, inconsistent HTML parsing, and difficulty extracting contact information from certain websites. Resolving these scraping issues is now our top priority.
 
 ## Project Structure
 ```
 /
-├── lead_generator/        # Main package
-│   ├── agents/            # Core functionality modules
-│   │   ├── scraper.py     # Base scraper functionality
+├── lead_generator/            # Main package
+│   ├── agents/                # Core functionality modules
+│   │   ├── scraper.py         # Base scraper functionality
 │   │   ├── yellow_pages_scraper.py
 │   │   ├── gov_ministry_scraper.py
 │   │   ├── university_scraper.py
 │   │   ├── email_generator.py
-│   │   ├── email_sender.py      # Email sending module (Updated with attachment support)
-│   ├── config/            # Configuration files
-│   │   ├── email_config.py      # Email settings configuration
-│   │   ├── secure_config.py     # Secure credential management
-│   │   ├── proposal_config.py   # Proposal selection configuration
-│   │   ├── .secure/             # Encrypted credential storage (not in VCS)
-│   ├── database/          # Database models and queries
-│   │   ├── models.py      # SQLite schema definitions
-│   │   ├── queries.py     # Database operation functions
-│   ├── prompts/           # Email templates
+│   │   ├── email_sender.py    # Email sending module (Updated with attachment support)
+│   ├── api/                   # API layer for n8n integration
+│   │   ├── api_service.py     # API service connecting core functionality
+│   │   ├── auth.py            # Authentication and authorization
+│   │   ├── models.py          # Pydantic models for validation
+│   │   ├── middleware.py      # Rate limiting and security middleware
+│   │   ├── routes.py          # API route definitions
+│   │   ├── app.py             # FastAPI application
+│   ├── config/                # Configuration files
+│   │   ├── email_config.py    # Email settings configuration
+│   │   ├── secure_config.py   # Secure credential management
+│   │   ├── proposal_config.py # Proposal selection configuration
+│   │   ├── .secure/           # Encrypted credential storage (not in VCS)
+│   ├── database/              # Database models and queries
+│   │   ├── models.py          # SQLite schema definitions
+│   │   ├── queries.py         # Database operation functions
+│   ├── prompts/               # Email templates
 │   │   ├── default.json
 │   │   ├── government.json
 │   │   ├── university.json
 │   │   ├── retreat.json
 │   │   ├── cost.json
 │   │   ├── exec_tone.json
-│   ├── utils/             # Utility functions
-│   │   ├── cache.py       # Deduplication and generation tracking
-│   │   ├── email_validator.py   # Email validation utilities
-│   ├── api/               # API layer for n8n integration
-│   │   ├── api_service.py # API service connecting core functionality
-│   │   ├── auth.py        # Authentication and authorization
-│   │   ├── models.py      # Pydantic models for validation
-│   │   ├── middleware.py  # Rate limiting and security middleware
-│   │   ├── routes.py      # API route definitions
-│   ├── tests/             # Test suites
+│   ├── utils/                 # Utility functions
+│   │   ├── cache.py           # Deduplication and generation tracking
+│   │   ├── email_validator.py # Email validation utilities
+│   ├── tests/                 # Test suites
 │   │   ├── unit/
-│   │   │   ├── test_scrapers.py
-│   │   │   ├── test_email_sender.py    # Email sender tests
-│   ├── emails/            # Directory for generated email files
-│   ├── logs/              # Log files directory
-│   ├── cache/             # Cache storage directory
-│   ├── backup/            # Backup files directory
-│   ├── main.py            # Main entry point (Updated with proposal attachment options)
-├── proposals/             # Directory for PDF proposal files
-├── run_scraper.bat        # Windows batch file (Updated with proposal attachment options)
-├── cleanup_temp_files.py  # Utility script for cleaning temporary files
-├── cleanup_temp_files.bat # Batch file for cleanup operations
-├── test_data.py           # Test data generator for development
-├── fix_imports.py         # Utility to fix import statements
-├── manage_credentials.py  # Credential management utility
-├── n8n_workflows/         # Directory containing n8n workflow exports
+│   │       ├── test_scrapers.py
+│   │       ├── test_email_sender.py  # Email sender tests
+│   │       ├── test_email_generator.py
+│   ├── main.py                # Main entry point for CLI
+├── scripts/                   # Utility scripts
+│   ├── run_lead_generator.bat # Script to run the lead generator
+│   ├── run_api.bat            # Script to run the API server
+│   ├── run_scraper.bat        # Legacy batch script (to be updated)
+│   ├── cleanup_temp_files.py  # Utility for cleaning temporary files
+│   ├── cleanup_temp_files.bat # Batch file for cleanup operations
+│   ├── fix_imports.py         # Utility to fix import statements
+├── proposals/                 # Directory for PDF proposal files
+├── n8n_workflows/             # Directory containing n8n workflow exports
 │   ├── lead_scraping.json     # Lead scraping workflow
 │   ├── email_generation.json  # Email generation workflow 
 │   ├── email_sending.json     # Email sending workflow
 │   ├── email_sending_with_proposals.json  # Email sending with PDF attachments workflow
 │   ├── analytics.json         # Analytics and reporting workflow
-├── requirements.txt       # Project dependencies
-├── README.md              # Project documentation
-├── PLANNING.md            # Project architecture and standards
-├── TASK.md                # Task tracking and management
-├── SECURITY.md            # Security guide and best practices
-├── PROPOSAL_GUIDE.md      # Guide for using the package-based proposal system
+├── output/                    # Output directory for scraped data
+├── logs/                      # Log files directory
+├── requirements.txt           # Project dependencies
+├── README.md                  # Project documentation
+├── PLANNING.md                # Project architecture and standards
+├── TASK.md                    # Task tracking and management
+├── SECURITY.md                # Security guide and best practices
+├── PROPOSAL_GUIDE.md          # Guide for using the package-based proposal system
 ├── IMPLEMENTATION_SUMMARY.md  # Technical implementation summary
-├── PROJECT_NOTES.md       # Project status and planning
-├── .env.template          # Template for environment variables (not in VCS)
-├── .env                   # Environment variables (not in VCS)
-├── run_api.bat            # Batch file for starting the API server
+├── PROJECT_NOTES.md           # Project status and planning
 ```
 
 ## Completed Tasks
+
+### Project Reorganization Phase (COMPLETED)
+1. ✅ Reorganized the project into a proper Python package structure
+2. ✅ Created a clean, modular directory structure following Python best practices
+3. ✅ Moved all core functionality into the `lead_generator` package
+4. ✅ Separated utility scripts into a dedicated `scripts` directory
+5. ✅ Updated import paths and file references to work with new structure
+6. ✅ Created appropriate `__init__.py` files to make the directories proper Python packages
+7. ✅ Removed duplicate files and cleaned up the project structure
 
 ### Lead Collection Phase (PARTIALLY COMPLETED)
 1. ✅ Implemented multiple scrapers for different sources:
