@@ -1,91 +1,91 @@
 @echo off
-rem ==============================================================
-rem Malaysian Lead Generator - API Server Startup Script
-rem This script starts the FastAPI server for lead management
-rem ==============================================================
+REM Malaysian Lead Generator - API Server Runner
+REM This script launches the FastAPI server for the lead generator API
 
-echo.
-echo Malaysian Lead Generator - API Server
-echo ====================================
-echo.
+REM Set default values
+SET HOST=127.0.0.1
+SET PORT=8000
+SET RELOAD=--reload
+SET WORKERS=1
+SET LOG_LEVEL=info
+SET PRODUCTION=
 
-setlocal
-
-rem Check if Python is available
-where python >nul 2>nul
-if %ERRORLEVEL% neq 0 (
-    echo ERROR: Python is not found in PATH.
-    echo Please ensure Python is installed and added to your PATH.
-    goto :end
-)
-
-rem Set working directory to script location
-pushd %~dp0
-
-rem Default values
-set PORT=8000
-set HOST=0.0.0.0
-set DEV_MODE=true
-set LOG_LEVEL=info
-
-rem Parse command line arguments
+REM Parse command line arguments
 :parse_args
-if "%~1"=="" goto start_server
-if /i "%~1"=="--port" (
-    set PORT=%~2
-    shift
-    shift
-    goto parse_args
+IF "%~1"=="" GOTO run
+IF /I "%~1"=="--host" (
+    SET HOST=%~2
+    SHIFT
+    SHIFT
+    GOTO parse_args
 )
-if /i "%~1"=="--host" (
-    set HOST=%~2
-    shift
-    shift
-    goto parse_args
+IF /I "%~1"=="--port" (
+    SET PORT=%~2
+    SHIFT
+    SHIFT
+    GOTO parse_args
 )
-if /i "%~1"=="--production" (
-    set DEV_MODE=false
-    shift
-    goto parse_args
+IF /I "%~1"=="--workers" (
+    SET WORKERS=%~2
+    SHIFT
+    SHIFT
+    GOTO parse_args
 )
-if /i "%~1"=="--log-level" (
-    set LOG_LEVEL=%~2
-    shift
-    shift
-    goto parse_args
+IF /I "%~1"=="--no-reload" (
+    SET RELOAD=
+    SHIFT
+    GOTO parse_args
 )
-echo WARNING: Unknown parameter: %~1
-shift
-goto parse_args
+IF /I "%~1"=="--production" (
+    SET PRODUCTION=--production
+    SET RELOAD=
+    SET WORKERS=4
+    SHIFT
+    GOTO parse_args
+)
+IF /I "%~1"=="--help" (
+    ECHO Malaysian Lead Generator API - Server Runner
+    ECHO.
+    ECHO Usage: run_api.bat [options]
+    ECHO.
+    ECHO Options:
+    ECHO   --host IP       Host IP to bind to (default: 127.0.0.1)
+    ECHO   --port N        Port to listen on (default: 8000)
+    ECHO   --workers N     Number of worker processes (default: 1)
+    ECHO   --no-reload     Disable auto-reload on code changes
+    ECHO   --production    Run in production mode (implies --no-reload and workers=4)
+    ECHO   --help          Show this help message
+    ECHO.
+    ECHO Examples:
+    ECHO   run_api.bat
+    ECHO   run_api.bat --host 0.0.0.0 --port 5000
+    ECHO   run_api.bat --production
+    EXIT /B
+)
 
-:start_server
-echo Starting API server on %HOST%:%PORT% (Log level: %LOG_LEVEL%)
+SHIFT
+GOTO parse_args
 
-rem Load environment variables if .env file exists
-if exist .env (
-    echo Loading environment from .env file...
-    for /F "tokens=*" %%A in (.env) do (
-        set %%A
+:run
+ECHO Starting Malaysian Lead Generator API Server...
+ECHO Host: %HOST%
+ECHO Port: %PORT%
+ECHO Workers: %WORKERS%
+IF NOT "%RELOAD%"=="" (
+    ECHO Mode: Development (auto-reload enabled)
+) ELSE (
+    IF "%PRODUCTION%"=="" (
+        ECHO Mode: Development
+    ) ELSE (
+        ECHO Mode: Production
     )
 )
+ECHO.
 
-rem Start the API server
-if %DEV_MODE%==true (
-    echo Running in development mode with auto-reload
-    python -m uvicorn lead_generator.api.main:app --host %HOST% --port %PORT% --reload --log-level %LOG_LEVEL%
-) else (
-    echo Running in production mode
-    python -m uvicorn lead_generator.api.main:app --host %HOST% --port %PORT% --log-level %LOG_LEVEL%
-)
+uvicorn lead_generator.api.app:app --host %HOST% --port %PORT% --workers %WORKERS% %RELOAD% %PRODUCTION%
 
-rem Check for errors
-if %ERRORLEVEL% neq 0 (
-    echo.
-    echo ERROR: API server failed to start with error code %ERRORLEVEL%.
-    goto :end
-)
-
-:end
-popd
-echo.
-pause 
+IF %ERRORLEVEL% NEQ 0 (
+    ECHO.
+    ECHO Error: API server failed with exit code %ERRORLEVEL%
+    EXIT /B %ERRORLEVEL%
+) 

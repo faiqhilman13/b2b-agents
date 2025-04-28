@@ -2,31 +2,70 @@
 
 ## Active Tasks
 
-### Data Acquisition Pivot (HIGHEST PRIORITY - Added 2024-06-05)
-- [ ] Research and evaluate API-based data sources for Malaysian business contacts
-  - [ ] Investigate Clearbit, Apollo, OpenCorporates, local government APIs
-  - [ ] Evaluate coverage, quality, cost, and terms of service
-  - [ ] Document findings and select 1-2 promising sources
-- [ ] Implement API client infrastructure
-  - [ ] Create base API client class with authentication and error handling
-  - [ ] Implement request caching and rate limiting
-  - [ ] Add credential management for API keys
-- [ ] Develop proof-of-concept integrations
-  - [ ] Implement integration with primary selected API
-  - [ ] Create data standardization module
-  - [ ] Test API responses and handle edge cases
-- [ ] Adjust database models for API-sourced data
-  - [ ] Update Lead model with new fields for API metadata
-  - [ ] Add source tracking and enrichment fields
-  - [ ] Create migration path for existing data
-- [ ] Re-evaluate scraping for targeted enrichment
-  - [ ] Select one specific high-value scraping target
-  - [ ] Implement advanced anti-blocking using Playwright or Selenium
-  - [ ] Test feasibility and make go/no-go decision on scraping
-- [ ] Update workflow with API data sources
-  - [ ] Refactor main.py to prioritize API-based acquisition
-  - [ ] Update n8n workflows for API-first approach
-  - [ ] Ensure smooth operation of email generation with API data
+### MCP-Powered Apify Integration (HIGHEST PRIORITY - Added 2024-06-10)
+- [x] Integrate MCP-powered Apify Actors for reliable data acquisition
+  - [x] Create GoogleMapsClient adapter for gmaps-proxy
+  - [x] Create InstagramClient adapter for instagram-scraper
+  - [x] Create WebBrowserClient adapter for rag-web-browser
+  - [x] Implement unified data standardization pipeline
+  - [x] Add caching to minimize API calls
+- [x] Enhance database models for rich API data
+  - [x] Add social media profile fields (Instagram)
+  - [x] Add location and rating fields (Google Maps)
+  - [x] Add data source tracking and timestamp fields
+  - [x] Create migration path for existing data
+- [x] Update workflow to leverage new data sources
+  - [x] Refactor main.py to prioritize MCP-powered data sources
+  - [x] Update n8n workflows for multi-source enrichment
+  - [x] Adjust email templates for new data points
+  - [x] Create targeting strategy based on business categories
+- [ ] Implement multi-source lead enrichment
+  - [x] Create lead enrichment pipeline combining data from multiple sources
+  - [ ] Implement lead scoring based on data completeness
+  - [x] Develop intelligent proposal matching using enhanced data
+  - [x] Add validation and deduplication for multi-source data
+
+### Frontend-Backend Integration (HIGH PRIORITY - Added 2024-07-06)
+- [x] Setup API service layer in frontend
+  - [x] Create API client service with axios/fetch
+  - [x] Implement authentication interceptors
+  - [x] Add error handling and response normalization
+  - [x] Create API endpoints for all required data operations
+- [x] Implement authentication flow
+  - [x] Create login/register components
+  - [x] Implement JWT token management
+  - [x] Add protected routes with authentication guards
+  - [x] Create user context provider
+- [ ] Connect frontend components to backend API
+  - [x] Update dashboard to display real data
+  - [x] Connect lead management page to leads API
+  - [ ] Link campaign management to campaign API endpoints
+  - [ ] Connect proposal management UI to backend
+- [x] Implement data management features
+  - [x] Add pagination, filtering, and sorting for data tables
+  - [x] Create search functionality across leads and campaigns
+  - [x] Implement form validation with error handling
+  - [x] Add optimistic UI updates with error rollback
+- [ ] Enhance security measures
+  - [x] Implement proper CORS configuration
+  - [x] Add CSRF protection
+  - [x] Sanitize user inputs
+  - [ ] Set up proper HTTP-only cookie handling
+- [ ] Create documentation
+  - [ ] Document API integration for frontend developers
+  - [ ] Add examples for common data operations
+  - [ ] Document authentication flow and security measures
+  - [ ] Create component documentation for the frontend
+
+### Data Acquisition Pivot (Completed 2024-06-10)
+- [x] Research and evaluate API-based data sources for Malaysian business contacts
+  - [x] Selected MCP-powered Apify Actors as primary data source
+  - [x] Evaluated coverage, quality, and terms of service
+  - [x] Documented capabilities of Google Maps, Instagram, and RAG Web Browser
+- [x] Identify API client infrastructure requirements
+  - [x] Determined need for adapter pattern to standardize responses
+  - [x] Identified caching requirements to optimize API usage
+  - [x] Documented authentication and error handling needs
 
 ### Security Improvements
 - [x] Implement stronger CORS settings in API layer
@@ -37,29 +76,26 @@
 - [ ] Implement parameterized queries across all database operations
 - [x] Add generic error responses in production mode
 - [ ] Implement audit logging for sensitive operations
-- [ ] Secure API key storage and management for external services
-
-### Agentive Frontend (Contingent on Data Acquisition Pivot)
-- [ ] Design user-friendly web interface
-- [ ] Implement dashboard for analytics
-- [ ] Create lead management interface
-- [ ] Build email template management system
-- [ ] Implement proposal management interface
+- [x] Secure API key storage and management for external services
+- [x] Add secure handling for Apify API credentials
 
 ### Testing Enhancements
 - [ ] Complete unit tests for email generation module
 - [ ] Add integration tests for API endpoints
-- [ ] Create tests for API client integrations
+- [x] Create tests for API client integrations (Google Maps client)
+- [x] Create tests for InstagramClient adapter
 - [ ] Implement end-to-end tests for main workflows
 - [ ] Add security-focused tests for authentication and authorization
+- [ ] Create tests for additional MCP-powered Apify client adapters
+- [ ] Create frontend component tests with React Testing Library
+- [ ] Add integration tests for frontend-backend communication
+- [ ] Implement end-to-end testing with Cypress
 
 ## Deprioritized Tasks
 
-### Scraper Functionality (Deprioritized in favor of API-first approach)
-- [ ] Fix recurring 403 Forbidden errors on BusinessList.my and YellowPages.my
-- [ ] Implement proxy rotation for scraping
-- [ ] Add more realistic browser fingerprinting
-- [ ] Implement exponential backoff for failed requests
+### Legacy Scraper Functionality (Deprecated in favor of MCP-powered approach)
+- [x] Replace unreliable web scraping with MCP-powered Apify Actors
+
 
 ## Completed Tasks
 
@@ -94,6 +130,14 @@
 - [x] Add permission-based authorization
 - [x] Develop n8n workflow templates
 
+### Frontend Development (Added 2024-07-06)
+- [x] Set up React.js frontend with Vite and TypeScript
+- [x] Create responsive UI components with Tailwind CSS
+- [x] Implement theme switching (light/dark mode)
+- [x] Build authentication UI with login/logout
+- [x] Create protected route system
+- [x] Build lead management interface
+
 ### Maintenance
 - [x] Create cleanup utilities for temporary files
 - [x] Implement import fixing utility
@@ -105,5 +149,19 @@
 - [ ] Email tracking pixel capability needed
 - [ ] Consider serverless deployment option for better scaling
 - [ ] Evaluate the need for a standalone proxy service for API reliability
+- [ ] Explore additional Apify Actors for data enrichment
+- [ ] Consider implementing AI-based lead qualification using gathered data
+- [x] Fix logging consistency in API client modules (use logger instance instead of direct logging module)
+- [x] Create client activation mechanism to fully enable MCP Actor integration in __init__.py
+- [x] Add documentation for API client usage and configuration
+- [x] Implement custom exception classes for API client errors
+- [x] Create frontend services directory for API integration (discovered 2024-07-06)
+- [ ] Implement token refresh mechanism to handle expired JWT tokens (discovered 2024-07-06)
+- [x] Need to update API CORS settings to allow frontend origin (discovered 2024-07-06)
+- [x] Create error boundary components for frontend error handling (discovered 2024-07-06)
+- [ ] Setup development environment documentation for new team members (discovered 2024-07-07)
+- [ ] Fix backend FastAPI startup issues with Python 3.13 compatibility (discovered 2024-07-07)
+- [ ] Document frontend-backend API contracts for consistent development (discovered 2024-07-07)
+- [ ] Create Docker compose setup for easier development environment (discovered 2024-07-07)
 
-*Last updated: 2024-06-05* 
+*Last updated: 2024-07-10* 

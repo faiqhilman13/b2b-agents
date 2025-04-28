@@ -1,1 +1,523 @@
- 
+{
+  "name": "Lead Acquisition With Multi-Source Enrichment",
+  "nodes": [
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "search",
+              "value": "="
+            },
+            {
+              "name": "location",
+              "value": "Kuala Lumpur"
+            },
+            {
+              "name": "useSources",
+              "value": "googlemaps,instagram,web"
+            },
+            {
+              "name": "limit",
+              "value": "10"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Set Search Parameters",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "path": "/api/lead/search",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer ={{ $credentials.leadGeneratorApi.token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "search",
+              "value": "={{ $json.search }}"
+            },
+            {
+              "name": "location",
+              "value": "={{ $json.location }}"
+            },
+            {
+              "name": "sources",
+              "value": "={{ $json.useSources }}"
+            },
+            {
+              "name": "limit",
+              "value": "={{ $json.limit }}"
+            },
+            {
+              "name": "multi_source",
+              "value": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "API - Multi-Source Lead Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        460,
+        300
+      ],
+      "credentials": {
+        "leadGeneratorApi": {
+          "id": "1",
+          "name": "Lead Generator API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.status }}",
+              "operation": "equal",
+              "value2": "success"
+            }
+          ]
+        }
+      },
+      "name": "Check Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "leads",
+              "value": "={{ $json.data.leads }}"
+            }
+          ]
+        },
+        "include": "leads",
+        "options": {}
+      },
+      "name": "Extract Leads",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        900,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "limit",
+        "fieldsToReturn": {
+          "values": [
+            {
+              "fieldName": "organization"
+            },
+            {
+              "fieldName": "person_name"
+            },
+            {
+              "fieldName": "role"
+            },
+            {
+              "fieldName": "email"
+            },
+            {
+              "fieldName": "phone"
+            },
+            {
+              "fieldName": "address"
+            },
+            {
+              "fieldName": "city"
+            },
+            {
+              "fieldName": "state"
+            },
+            {
+              "fieldName": "postal_code"
+            },
+            {
+              "fieldName": "website"
+            },
+            {
+              "fieldName": "industry"
+            },
+            {
+              "fieldName": "source"
+            },
+            {
+              "fieldName": "rating"
+            },
+            {
+              "fieldName": "social_media"
+            },
+            {
+              "fieldName": "completeness_score"
+            },
+            {
+              "fieldName": "id"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Process Leads",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 2,
+      "position": [
+        900,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "path": "/api/lead/import",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer ={{ $credentials.leadGeneratorApi.token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "leads",
+              "value": "={{ $json.leads }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "API - Import Leads to DB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1140,
+        440
+      ],
+      "credentials": {
+        "leadGeneratorApi": {
+          "id": "1",
+          "name": "Lead Generator API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.leads.length }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "name": "Has Leads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1140,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "path": "/api/email/generate",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer ={{ $credentials.leadGeneratorApi.token }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "lead_status",
+              "value": "NEW"
+            },
+            {
+              "name": "template",
+              "value": "default"
+            },
+            {
+              "name": "limit",
+              "value": 10
+            },
+            {
+              "name": "update_status",
+              "value": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "API - Generate Emails",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1340,
+        240
+      ],
+      "credentials": {
+        "leadGeneratorApi": {
+          "id": "1",
+          "name": "Lead Generator API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Error: Lead Search Failed\n\nThe API returned an error: {{ $json.message || \"Unknown error\" }}",
+        "options": {}
+      },
+      "name": "Error Message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        900,
+        660
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## No Leads Found\n\nThe search was successful but no leads were found matching the criteria.",
+        "options": {}
+      },
+      "name": "No Leads Message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "resumeOnFail": true,
+        "options": {}
+      },
+      "name": "Merge Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [
+        1580,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $credentials.telegramApi.chatId }}",
+        "text": "=### Lead Generator Report\n\nTotal Leads: {{ $json.data?.leads?.length || 0 }}\nEmails Generated: {{ $json.data?.emails_generated || 0 }}\n\n{{ $json.message || '' }}\n\nTime: {{ $now }}",
+        "additionalFields": {}
+      },
+      "name": "Send Report",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        1780,
+        300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "2",
+          "name": "Telegram"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Set Search Parameters": {
+      "main": [
+        [
+          {
+            "node": "API - Multi-Source Lead Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API - Multi-Source Lead Search": {
+      "main": [
+        [
+          {
+            "node": "Check Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Success": {
+      "main": [
+        [
+          {
+            "node": "Extract Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Leads": {
+      "main": [
+        [
+          {
+            "node": "Has Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Leads": {
+      "main": [
+        [
+          {
+            "node": "API - Import Leads to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API - Import Leads to DB": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Has Leads?": {
+      "main": [
+        [
+          {
+            "node": "API - Generate Emails",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Leads Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API - Generate Emails": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Message": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "No Leads Message": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Merge Results": {
+      "main": [
+        [
+          {
+            "node": "Send Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2023-08-25T14:55:00.000Z",
+  "versionId": "6e7c79a4-db2e-4d09-ac2d-e4e3072b0dc0"
+} 

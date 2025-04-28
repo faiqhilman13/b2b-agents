@@ -14,6 +14,13 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 PROPOSALS_DIR = BASE_DIR / "proposals"
 
+# Import targeting strategy if available
+try:
+    from .targeting_config import get_targeting_strategy, get_targeting_tier
+    TARGETING_AVAILABLE = True
+except ImportError:
+    TARGETING_AVAILABLE = False
+
 # Ensure proposals directory exists
 os.makedirs(PROPOSALS_DIR, exist_ok=True)
 
@@ -78,6 +85,46 @@ PACKAGE_TYPES = {
             "party", "banquet", "gala", "anniversary", "special occasion",
             "formal dinner", "celebration"
         ]
+    },
+    # New premium package types for targeting strategy
+    "premium": {
+        "file": "premium package.pdf",
+        "description": "Premium comprehensive solution package",
+        "variants": {
+            "corporate": "premium corp package.pdf",
+            "government": "premium gov package.pdf",
+            "university": "premium edu package.pdf"
+        },
+        "keywords": [
+            "premium", "comprehensive", "enterprise", "complete solution",
+            "full service", "turnkey", "end-to-end", "strategic", "exclusive"
+        ]
+    },
+    "standard": {
+        "file": "standard package.pdf",
+        "description": "Standard solution package",
+        "variants": {
+            "corporate": "standard corp package.pdf",
+            "government": "standard gov package.pdf",
+            "university": "standard edu package.pdf"
+        },
+        "keywords": [
+            "standard", "solution", "service", "professional", "business",
+            "efficient", "core", "main", "primary"
+        ]
+    },
+    "basic": {
+        "file": "basic package.pdf",
+        "description": "Basic starter package",
+        "variants": {
+            "corporate": "basic corp package.pdf",
+            "government": "basic gov package.pdf",
+            "university": "basic edu package.pdf"
+        },
+        "keywords": [
+            "basic", "starter", "introductory", "entry", "fundamental",
+            "essential", "simple", "beginner", "starting point"
+        ]
     }
 }
 
@@ -88,7 +135,7 @@ TEMPLATE_TO_PACKAGE = {
     "university": "camping",       # University/academic template -> Camping package
     "retreat": "seminar",          # Strategic retreat template -> Seminar package
     "cost": "meeting",             # Cost optimization template -> Meeting package
-    "exec_tone": "meeting"         # Executive formal template -> Meeting package
+    "exec_tone": "premium"         # Executive formal template -> Premium package
 }
 
 # Organization type classification rules
@@ -126,19 +173,36 @@ def get_package_pdf(lead_data: Dict[str, Any], template_name: Optional[str] = No
     Returns:
         Path to the recommended PDF file or None if no match
     """
-    # Detect organization type
-    org_type = determine_organization_type(lead_data)
-    
-    # If template_name is provided, use the mapping to get the suggested package
-    if template_name and template_name in TEMPLATE_TO_PACKAGE:
-        package_type = TEMPLATE_TO_PACKAGE[template_name]
+    # Check if targeting strategy is available and use it if possible
+    if TARGETING_AVAILABLE:
+        # Get targeting strategy for this lead
+        strategy = get_targeting_strategy(lead_data)
+        package_from_strategy = strategy.get("proposal")
+        
+        # If strategy recommends a specific package, use it
+        if package_from_strategy and package_from_strategy in PACKAGE_TYPES:
+            package_type = package_from_strategy
+        else:
+            # Use standard template mapping
+            if template_name and template_name in TEMPLATE_TO_PACKAGE:
+                package_type = TEMPLATE_TO_PACKAGE[template_name]
+            else:
+                # Otherwise determine best package based on keywords
+                package_type = determine_package_type(lead_data)
     else:
-        # Otherwise determine best package based on keywords and other lead attributes
-        package_type = determine_package_type(lead_data)
+        # Fallback to standard template mapping
+        if template_name and template_name in TEMPLATE_TO_PACKAGE:
+            package_type = TEMPLATE_TO_PACKAGE[template_name]
+        else:
+            # Otherwise determine best package based on keywords
+            package_type = determine_package_type(lead_data)
     
     if not package_type:
         # Default to meeting package if nothing else matches
         package_type = "meeting"
+    
+    # Detect organization type
+    org_type = determine_organization_type(lead_data)
         
     # Get the specific variant based on organization type
     package_info = PACKAGE_TYPES[package_type]
@@ -197,9 +261,10 @@ def determine_package_type(lead_data: Dict[str, Any]) -> Optional[str]:
     role = lead_data.get("role", "").lower()
     notes = lead_data.get("notes", "").lower()
     source = lead_data.get("source_url", "").lower()
+    industry = lead_data.get("industry", "").lower()
     
     # Combine all text for keyword matching
-    all_text = f"{org} {role} {notes} {source}"
+    all_text = f"{org} {role} {notes} {source} {industry}"
     
     # Count keyword matches for each package type
     match_scores = {pkg_type: 0 for pkg_type in PACKAGE_TYPES.keys()}
@@ -208,6 +273,22 @@ def determine_package_type(lead_data: Dict[str, Any]) -> Optional[str]:
         for keyword in pkg_info["keywords"]:
             if keyword.lower() in all_text:
                 match_scores[pkg_type] += 1
+    
+    # Give bonus points based on industry and organization type
+    org_type = determine_organization_type(lead_data)
+    
+    # Higher-value industries get premium packages
+    high_value_industries = ["software", "consulting", "technology", "digital", "marketing", "financial"]
+    for industry_term in high_value_industries:
+        if industry_term in industry:
+            match_scores["premium"] += 2
+            match_scores["standard"] += 1
+    
+    # Government and university sectors get seminar packages
+    if org_type == "government":
+        match_scores["seminar"] += 2
+    elif org_type == "university":
+        match_scores["camping"] += 2
     
     # Find the package with the highest match score
     best_match = max(match_scores.items(), key=lambda x: x[1])

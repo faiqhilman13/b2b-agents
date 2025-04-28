@@ -71,11 +71,51 @@ class EmailGenerator:
             if not template:
                 raise ValueError("No valid template found")
             
+            # Create specialized sentences based on available data
+            industry_sentence = ""
+            if lead.get("industry"):
+                industry_sentence = f"I noticed your focus on {lead.get('industry')}, which aligns with our expertise in [Your Relevant Expertise]."
+            
+            rating_sentence = ""
+            if lead.get("rating") and float(lead.get("rating", 0)) >= 4.0:
+                rating_sentence = f"I was impressed by your excellent rating of {lead.get('rating')} and the positive feedback from your clients."
+            
+            location_sentence = ""
+            if lead.get("city") and lead.get("state"):
+                location_sentence = f"As a business based in {lead.get('city')}, {lead.get('state')}, you're ideally positioned to benefit from our [Relevant Local Service/Insight]."
+            
+            social_sentence = ""
+            if lead.get("social_media", {}).get("instagram") or lead.get("social_media", {}).get("facebook"):
+                platforms = []
+                if lead.get("social_media", {}).get("instagram"):
+                    platforms.append("Instagram")
+                if lead.get("social_media", {}).get("facebook"):
+                    platforms.append("Facebook")
+                if lead.get("social_media", {}).get("linkedin"):
+                    platforms.append("LinkedIn")
+                
+                platform_text = " and ".join(platforms)
+                social_sentence = f"I've been following your {platform_text} presence and am impressed with your engagement with customers."
+            
             # Prepare variables for template
             variables = {
                 "organization": lead.get("organization", ""),
-                "person_name": lead.get("person_name", ""),
+                "person_name": lead.get("person_name", "Your Team"),
                 "role": lead.get("role", ""),
+                "email": lead.get("email", ""),
+                "phone": lead.get("phone", ""),
+                "address": lead.get("address", ""),
+                "city": lead.get("city", "Malaysia"),
+                "state": lead.get("state", ""),
+                "postal_code": lead.get("postal_code", ""),
+                "website": lead.get("website", ""),
+                "industry": lead.get("industry", "your industry"),
+                "rating": lead.get("rating", ""),
+                "reviews_count": lead.get("reviews_count", ""),
+                "industry_sentence": industry_sentence,
+                "rating_sentence": rating_sentence,
+                "location_sentence": location_sentence,
+                "social_sentence": social_sentence,
                 "current_date": datetime.now().strftime("%B %d, %Y"),
                 **(custom_variables or {})
             }
@@ -89,7 +129,12 @@ class EmailGenerator:
                 "body": body,
                 "to_email": lead.get("email", ""),
                 "template_used": template_name,
-                "generated_at": datetime.now().isoformat()
+                "generated_at": datetime.now().isoformat(),
+                "organization": lead.get("organization", ""),
+                "person_name": lead.get("person_name", ""),
+                "role": lead.get("role", ""),
+                "source_url": lead.get("source_url", ""),
+                "notes": lead.get("notes", "")
             }
             
         except Exception as e:

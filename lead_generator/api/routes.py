@@ -129,17 +129,43 @@ def create_app() -> FastAPI:
         debug=debug_mode
     )
     
-    # Setup CORS
+    # Define allowed origins from environment variable or use defaults
+    ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "").split(",")
+    if not ALLOWED_ORIGINS or ALLOWED_ORIGINS == [""]:
+        # Default allowed origins
+        ALLOWED_ORIGINS = [
+            "http://localhost:3000",     # Local development frontend
+            "http://localhost:8080",     # Local development alternative
+            "http://localhost:5173",     # Vite development server
+            "http://localhost:5174",     # Vite fallback port
+            "http://localhost:5175",     # Additional Vite port
+            "https://lead-generator.example.com",  # Production frontend
+        ]
+        
+    logger.info(f"CORS allowed origins: {ALLOWED_ORIGINS}")
+    
+    # Setup CORS with secure configuration
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:3000",  # Local development frontend
-            "http://localhost:8080",  # Local development alternative
-            "https://lead-generator.example.com",  # Production frontend
-        ],  # Specific origins instead of wildcard "*"
-        allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "DELETE"],  # Specific methods instead of "*"
-        allow_headers=["Authorization", "Content-Type"],  # Specific headers instead of "*"
+        allow_origins=ALLOWED_ORIGINS,  # Restrict to specific origins only
+        allow_credentials=True,         # Allow cookies to be sent with requests
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicitly enumerate allowed methods
+        allow_headers=[
+            "Authorization", 
+            "Content-Type", 
+            "Accept", 
+            "Origin", 
+            "X-Requested-With",
+            "Access-Control-Allow-Origin",
+            "Access-Control-Allow-Credentials",
+        ],  # Explicitly enumerate allowed headers
+        expose_headers=[
+            "Content-Length", 
+            "Content-Type", 
+            "X-Pagination-Total-Count", 
+            "X-Pagination-Total-Pages"
+        ],  # Headers that can be exposed to the browser
+        max_age=600,  # Cache preflight requests for 10 minutes
     )
     
     # Add custom middleware for rate limiting and request logging

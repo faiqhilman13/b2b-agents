@@ -1,9 +1,8 @@
 """
-Lead Generator - Malaysian Business Contact Collection Tool
+Malaysian Lead Generator - Tool for collecting business contacts from Malaysian sources.
 
-This package provides tools for scraping business contact information from
-various Malaysian sources including Yellow Pages, government websites,
-university staff directories, and more.
+This package provides a suite of tools for scraping, generating emails, and sending communications
+to business contacts in Malaysia.
 """
 
 __version__ = "0.1.0" 

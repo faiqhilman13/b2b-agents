@@ -3,10 +3,12 @@
 Lead Generator - Malaysian Business Contact Collection Tool
 
 This tool helps collect business leads from various Malaysian sources including:
+- Google Maps (MCP-powered Apify Actor)
+- Instagram (MCP-powered Apify Actor)
+- Web Browser (MCP-powered Apify Actor)
 - Yellow Pages Malaysia
 - Government ministry websites
 - University staff directories
-- Chambers of commerce
 
 It also provides functionality to generate and send personalized emails to collected leads.
 
@@ -20,6 +22,7 @@ import sys
 import time
 import csv
 import glob
+import json
 from datetime import datetime
 from typing import List, Dict, Optional, Tuple
 
@@ -34,11 +37,26 @@ from lead_generator.agents.email_generator import EmailGenerator
 from lead_generator.agents.email_sender import EmailSender, email_sender
 from lead_generator.utils.email_validator import EmailValidator
 from lead_generator.utils.cache import EmailCache
+from lead_generator.utils.data_processor import (
+    standardize_lead, 
+    enrich_lead, 
+    deduplicate_leads, 
+    filter_leads_by_completeness
+)
 from lead_generator.database.models import init_db, Lead, LeadStatus
 from lead_generator.database.queries import LeadQueries
 from sqlalchemy.orm import sessionmaker
 from lead_generator.config.email_config import EMAIL_VALIDATION
 from lead_generator.config.proposal_config import get_package_pdf, list_available_packages
+
+# Import MCP-powered API clients
+from lead_generator.agents.api_clients import (
+    activate_clients,
+    get_client,
+    GoogleMapsClient,
+    InstagramClient,
+    WebBrowserClient
+)
 
 # Set up logging
 def setup_logging(log_level="INFO"):
@@ -61,6 +79,48 @@ def setup_logging(log_level="INFO"):
     )
     
     return logging.getLogger("lead_generator")
+
+# MCP-Powered Data Sources Settings
+GOOGLE_MAPS_CATEGORIES = [
+    "software development",
+    "engineering consulting",
+    "training center",
+    "marketing agency",
+    "event management",
+    "financial services",
+    "education center",
+    "consulting firm"
+]
+
+GOOGLE_MAPS_LOCATIONS = [
+    "Kuala Lumpur",
+    "Petaling Jaya",
+    "Penang",
+    "Johor Bahru",
+    "Shah Alam",
+    "Cyberjaya",
+    "Puchong",
+    "Bandar Sunway"
+]
+
+INSTAGRAM_BUSINESS_TAGS = [
+    "malaysiatech",
+    "malaysiabusiness",
+    "klentrepreneur",
+    "mbbiz",
+    "kualalumpurbusiness",
+    "malaysiastartup",
+    "malaysiaconsulting"
+]
+
+WEB_SEARCH_QUERIES = [
+    "top software companies in Malaysia",
+    "engineering consulting firms Kuala Lumpur",
+    "business training Malaysia",
+    "financial advisory services Petaling Jaya",
+    "education consulting Malaysia",
+    "executive training programs Kuala Lumpur"
+]
 
 # Yellow Pages Categories of interest
 # These categories work with Yellow Pages Malaysia (yellowpages.my)
@@ -234,9 +294,9 @@ def combine_csv_files(output_dir, output_file, logger):
     logger.info(f"Successfully combined {len(csv_files)} CSV files into {output_file}")
     return output_file
 
-def import_leads_to_database(csv_file, logger):
-    """Import leads from CSV file to database."""
-    logger.info(f"Importing leads from {csv_file} to database")
+def import_leads_to_database(input_file, logger):
+    """Import leads from JSON or CSV file to database."""
+    logger.info(f"Importing leads from {input_file} to database")
     
     # Initialize database
     db_path = "leads.db"
@@ -249,36 +309,150 @@ def import_leads_to_database(csv_file, logger):
     total_imported = 0
     total_skipped = 0
     
-    with open(csv_file, 'r', newline='', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
+    try:
+        # Load leads from file
+        leads = []
+        
+        if input_file.endswith('.json'):
+            # JSON file format
+            with open(input_file, 'r', encoding='utf-8') as f:
+                leads = json.load(f)
+        else:
+            # CSV file format
+            with open(input_file, 'r', newline='', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                leads = list(reader)
+        
+        logger.info(f"Loaded {len(leads)} leads from {input_file}")
+        
+        # Process each lead
+        for lead in leads:
             # Check if email is valid
-            if not row.get('email') or not EmailValidator.validate_email(row.get('email'))[0]:
-                logger.debug(f"Skipping lead with invalid email: {row.get('email')}")
+            if not lead.get('email'):
+                logger.debug(f"Skipping lead without email: {lead.get('organization', 'Unknown')}")
+                total_skipped += 1
+                continue
+                
+            email_valid, _ = EmailValidator.validate_email(lead.get('email'))
+            if not email_valid:
+                logger.debug(f"Skipping lead with invalid email: {lead.get('email')}")
                 total_skipped += 1
                 continue
                 
             # Check if lead already exists
-            existing_lead = queries.get_lead(row.get('email'))
+            existing_lead = queries.get_lead(email=lead.get('email'))
             if existing_lead:
-                logger.debug(f"Lead already exists: {row.get('email')}")
+                logger.debug(f"Lead already exists: {lead.get('email')}")
                 total_skipped += 1
                 continue
-                
-            # Save lead to database
+            
+            # Extract lead data from the standardized format
             lead_data = {
-                'organization': row.get('organization', ''),
-                'person_name': row.get('person_name', ''),
-                'role': row.get('role', ''),
-                'email': row.get('email', ''),
-                'phone': row.get('phone', ''),
-                'source_url': row.get('source_url', '')
+                'organization': lead.get('organization', ''),
+                'person_name': lead.get('person_name', ''),
+                'role': lead.get('role', ''),
+                'email': lead.get('email', ''),
+                'phone': lead.get('phone', ''),
+                'website': lead.get('website', ''),
+                'industry': lead.get('industry', ''),
+                'source_url': lead.get('source_url', '')
             }
             
-            queries.save_lead(lead_data)
+            # Add enhanced data if available
+            if 'address' in lead or 'city' in lead:
+                # Location data
+                location_data = {
+                    'address': lead.get('address', ''),
+                    'city': lead.get('city', ''),
+                    'state': lead.get('state', ''),
+                    'postal_code': lead.get('postal_code', ''),
+                    'latitude': lead.get('location', {}).get('latitude'),
+                    'longitude': lead.get('location', {}).get('longitude')
+                }
+                
+                # Add location to lead_data for reference
+                lead_data['location_data'] = location_data
+            
+            # Add business details if available
+            if 'rating' in lead or 'reviews_count' in lead:
+                # Business details
+                business_details = {
+                    'rating': lead.get('rating'),
+                    'reviews_count': lead.get('reviews_count', 0),
+                    'category': lead.get('industry', '')
+                }
+                
+                # Add business details to lead_data for reference
+                lead_data['business_details'] = business_details
+            
+            # Add social media profiles if available
+            if 'social_media' in lead and isinstance(lead['social_media'], dict):
+                # Social media profiles
+                social_media = []
+                
+                for platform, url in lead['social_media'].items():
+                    if url:
+                        social_media.append({
+                            'platform': platform,
+                            'url': url
+                        })
+                
+                # Add social media to lead_data for reference
+                lead_data['social_media'] = social_media
+            
+            # Save lead to database
+            saved_lead = queries.save_lead(lead_data)
             total_imported += 1
+            
+            # Now add related data if it was included
+            if saved_lead and hasattr(saved_lead, 'id'):
+                # Add location data
+                if 'location_data' in lead_data and any(lead_data['location_data'].values()):
+                    try:
+                        queries.add_lead_location(saved_lead.id, lead_data['location_data'])
+                    except Exception as e:
+                        logger.error(f"Error adding location data: {str(e)}")
+                
+                # Add business details
+                if 'business_details' in lead_data and any(lead_data['business_details'].values()):
+                    try:
+                        queries.add_business_details(saved_lead.id, lead_data['business_details'])
+                    except Exception as e:
+                        logger.error(f"Error adding business details: {str(e)}")
+                
+                # Add social media profiles
+                if 'social_media' in lead_data and lead_data['social_media']:
+                    for profile in lead_data['social_media']:
+                        try:
+                            queries.add_social_media_profile(
+                                saved_lead.id,
+                                platform=profile['platform'],
+                                url=profile['url']
+                            )
+                        except Exception as e:
+                            logger.error(f"Error adding social media profile: {str(e)}")
+                
+                # Add data source
+                if 'source' in lead:
+                    try:
+                        # Convert string source to DataSource enum
+                        source_type = lead.get('source', '').upper()
+                        if source_type in [s.name for s in DataSource]:
+                            source = DataSource[source_type]
+                            queries.add_lead_data_source(
+                                saved_lead.id,
+                                source_type=source,
+                                source_url=lead.get('source_url', ''),
+                                raw_data=lead.get('metadata', {})
+                            )
+                    except Exception as e:
+                        logger.error(f"Error adding data source: {str(e)}")
     
-    session.close()
+    except Exception as e:
+        logger.error(f"Error importing leads: {str(e)}")
+        session.rollback()
+    finally:
+        session.close()
     
     logger.info(f"Lead import completed. Imported: {total_imported}, Skipped: {total_skipped}")
     return total_imported
@@ -501,28 +675,429 @@ def send_emails(emails, args, logger):
         logger.error(f"Error sending emails: {str(e)}")
         return 0
 
+def run_google_maps_client(args, logger):
+    """Run the Google Maps client to collect business data."""
+    logger.info("Starting Google Maps data collection")
+    
+    # Get the Google Maps client
+    try:
+        gmaps_client = get_client('google_maps')
+        if not gmaps_client:
+            logger.error("Failed to initialize Google Maps client. Check your API configuration.")
+            return 0
+    except Exception as e:
+        logger.error(f"Error initializing Google Maps client: {str(e)}")
+        return 0
+    
+    # Determine the search parameters
+    if args.search:
+        query = args.search
+        logger.info(f"Searching for businesses using query: {query}")
+    else:
+        # Default to categories if no search query
+        categories = args.categories.split(",") if args.categories else GOOGLE_MAPS_CATEGORIES
+        if args.limit_sources and len(categories) > args.limit_sources:
+            categories = categories[:args.limit_sources]
+        
+        query = categories[0]  # Use the first category as query
+        logger.info(f"Searching for businesses in category: {query}")
+    
+    # Determine location
+    location = args.location
+    if not location:
+        # Use the first location from defaults
+        location = GOOGLE_MAPS_LOCATIONS[0]
+    
+    logger.info(f"Using location: {location}")
+    
+    # Determine result limit
+    limit = args.limit if args.limit else 20
+    logger.info(f"Limiting results to: {limit}")
+    
+    # Set up output file
+    output_file = os.path.join(args.output_dir, "google_maps_leads.json")
+    
+    try:
+        # Search for businesses
+        businesses = gmaps_client.search_businesses(
+            query=query,
+            location=location,
+            limit=limit
+        )
+        
+        if not businesses:
+            logger.warning("No businesses found from Google Maps search")
+            return 0
+        
+        logger.info(f"Found {len(businesses)} businesses from Google Maps")
+        
+        # Standardize the data
+        standardized_leads = []
+        for business in businesses:
+            try:
+                lead = standardize_lead(business, "google_maps")
+                standardized_leads.append(lead)
+            except Exception as e:
+                logger.error(f"Error standardizing lead data: {str(e)}")
+        
+        # Save to file
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(standardized_leads, f, indent=2)
+        
+        logger.info(f"Saved {len(standardized_leads)} standardized leads to {output_file}")
+        
+        # Save to CSV for backward compatibility
+        csv_output_file = os.path.join(args.output_dir, "google_maps_leads.csv")
+        _convert_leads_to_csv(standardized_leads, csv_output_file)
+        logger.info(f"Saved leads to CSV for compatibility: {csv_output_file}")
+        
+        return len(standardized_leads)
+        
+    except Exception as e:
+        logger.error(f"Error in Google Maps client: {str(e)}")
+        return 0
+
+def run_instagram_client(args, logger):
+    """Run the Instagram client to collect business data."""
+    logger.info("Starting Instagram data collection")
+    
+    # Get the Instagram client
+    try:
+        instagram_client = get_client('instagram')
+        if not instagram_client:
+            logger.error("Failed to initialize Instagram client. Check your API configuration.")
+            return 0
+    except Exception as e:
+        logger.error(f"Error initializing Instagram client: {str(e)}")
+        return 0
+    
+    # Determine the search parameters
+    if args.search:
+        query = args.search
+        logger.info(f"Searching Instagram using query: {query}")
+    else:
+        # Default to hashtags if no search query
+        hashtags = args.hashtags.split(",") if args.hashtags else INSTAGRAM_BUSINESS_TAGS
+        if args.limit_sources and len(hashtags) > args.limit_sources:
+            hashtags = hashtags[:args.limit_sources]
+        
+        # Add # if not present
+        query = hashtags[0] if hashtags[0].startswith("#") else f"#{hashtags[0]}"
+        logger.info(f"Searching Instagram with hashtag: {query}")
+    
+    # Determine result limit
+    limit = args.limit if args.limit else 20
+    logger.info(f"Limiting results to: {limit}")
+    
+    # Set up output file
+    output_file = os.path.join(args.output_dir, "instagram_leads.json")
+    
+    try:
+        # Search for businesses
+        if query.startswith("@"):
+            # Search by username
+            username = query[1:]  # Remove @ prefix
+            profile = instagram_client.get_profile(username)
+            posts = instagram_client.get_profile_posts(username, limit=limit)
+            
+            if not profile and not posts:
+                logger.warning(f"No data found for Instagram profile: {username}")
+                return 0
+            
+            # Combine profile and posts
+            results = {"profile": profile, "posts": posts}
+            
+        elif query.startswith("#"):
+            # Search by hashtag
+            hashtag = query[1:]  # Remove # prefix
+            results = instagram_client.search_hashtag(hashtag, limit=limit)
+            
+            if not results:
+                logger.warning(f"No data found for Instagram hashtag: {hashtag}")
+                return 0
+        else:
+            # General business search
+            results = instagram_client.search_business(query, limit=limit)
+            
+            if not results:
+                logger.warning(f"No data found for Instagram business search: {query}")
+                return 0
+        
+        logger.info(f"Found Instagram data for query: {query}")
+        
+        # Standardize the data
+        standardized_leads = []
+        
+        # Handle different result types
+        if isinstance(results, dict) and "profile" in results:
+            # Profile with posts
+            lead = standardize_lead(results["profile"], "instagram")
+            standardized_leads.append(lead)
+            
+            # Add leads from posts if they have contact info
+            for post in results.get("posts", []):
+                if any(contact_field in str(post) for contact_field in ["email", "phone", "contact", "@"]):
+                    lead = standardize_lead(post, "instagram")
+                    standardized_leads.append(lead)
+        elif isinstance(results, list):
+            # List of results
+            for result in results:
+                lead = standardize_lead(result, "instagram")
+                standardized_leads.append(lead)
+        else:
+            # Single result
+            lead = standardize_lead(results, "instagram")
+            standardized_leads.append(lead)
+        
+        # Save to file
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(standardized_leads, f, indent=2)
+        
+        logger.info(f"Saved {len(standardized_leads)} standardized leads to {output_file}")
+        
+        # Save to CSV for backward compatibility
+        csv_output_file = os.path.join(args.output_dir, "instagram_leads.csv")
+        _convert_leads_to_csv(standardized_leads, csv_output_file)
+        logger.info(f"Saved leads to CSV for compatibility: {csv_output_file}")
+        
+        return len(standardized_leads)
+        
+    except Exception as e:
+        logger.error(f"Error in Instagram client: {str(e)}")
+        return 0
+
+def run_web_browser_client(args, logger):
+    """Run the Web Browser client to collect business data."""
+    logger.info("Starting Web Browser data collection")
+    
+    # Get the Web Browser client
+    try:
+        web_client = get_client('web_browser')
+        if not web_client:
+            logger.error("Failed to initialize Web Browser client. Check your API configuration.")
+            return 0
+    except Exception as e:
+        logger.error(f"Error initializing Web Browser client: {str(e)}")
+        return 0
+    
+    # Determine the search parameters
+    if args.search:
+        query = args.search
+        logger.info(f"Searching with Web Browser using query: {query}")
+    elif args.url:
+        # Direct URL extraction
+        query = args.url
+        logger.info(f"Extracting content from URL: {query}")
+    else:
+        # Default to predefined queries
+        queries = args.queries.split(",") if args.queries else WEB_SEARCH_QUERIES
+        if args.limit_sources and len(queries) > args.limit_sources:
+            queries = queries[:args.limit_sources]
+        
+        query = queries[0]
+        logger.info(f"Searching with Web Browser using default query: {query}")
+    
+    # Determine result limit
+    limit = args.limit if args.limit else 3  # Web browser typically needs fewer results
+    logger.info(f"Limiting results to: {limit}")
+    
+    # Set up output file
+    output_file = os.path.join(args.output_dir, "web_browser_leads.json")
+    
+    try:
+        # Process based on input type
+        if query.startswith(("http://", "https://")):
+            # Direct URL extraction
+            content = web_client.extract_from_url(url=query)
+            
+            if not content:
+                logger.warning(f"No content extracted from URL: {query}")
+                return 0
+            
+            results = [{"url": query, "content": content}]
+        else:
+            # Search query
+            results = web_client.search_and_extract(
+                query=query,
+                max_results=limit
+            )
+            
+            if not results:
+                logger.warning(f"No results found for Web Browser search: {query}")
+                return 0
+        
+        logger.info(f"Found {len(results)} web pages with Web Browser")
+        
+        # Standardize the data
+        standardized_leads = []
+        for result in results:
+            try:
+                lead = standardize_lead(result, "web_browser")
+                standardized_leads.append(lead)
+            except Exception as e:
+                logger.error(f"Error standardizing lead data: {str(e)}")
+        
+        # Save to file
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(standardized_leads, f, indent=2)
+        
+        logger.info(f"Saved {len(standardized_leads)} standardized leads to {output_file}")
+        
+        # Save to CSV for backward compatibility
+        csv_output_file = os.path.join(args.output_dir, "web_browser_leads.csv")
+        _convert_leads_to_csv(standardized_leads, csv_output_file)
+        logger.info(f"Saved leads to CSV for compatibility: {csv_output_file}")
+        
+        return len(standardized_leads)
+        
+    except Exception as e:
+        logger.error(f"Error in Web Browser client: {str(e)}")
+        return 0
+
+def _convert_leads_to_csv(leads, csv_file):
+    """Convert standardized leads to CSV format for compatibility."""
+    if not leads:
+        return
+        
+    # Define the CSV fields
+    fields = [
+        "organization", "person_name", "role", "email", "phone", 
+        "address", "city", "state", "postal_code", "website", 
+        "industry", "source", "timestamp"
+    ]
+    
+    with open(csv_file, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        
+        for lead in leads:
+            # Extract flat fields for CSV
+            row = {field: lead.get(field, "") for field in fields}
+            writer.writerow(row)
+
+def enrich_and_deduplicate_leads(args, logger):
+    """Load leads from all sources, enrich, and deduplicate them."""
+    logger.info("Starting lead enrichment and deduplication process")
+    
+    all_leads = []
+    
+    # Load leads from all source files
+    sources = [
+        ("google_maps_leads.json", "google_maps"),
+        ("instagram_leads.json", "instagram"),
+        ("web_browser_leads.json", "web_browser"),
+        ("yellow_pages_leads.csv", "yellow_pages"),
+        ("gov_ministry_leads.csv", "government"),
+        ("university_leads.csv", "university")
+    ]
+    
+    for filename, source_type in sources:
+        filepath = os.path.join(args.output_dir, filename)
+        if not os.path.exists(filepath):
+            continue
+            
+        logger.info(f"Loading leads from {filepath}")
+        
+        try:
+            if filepath.endswith('.json'):
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    source_leads = json.load(f)
+            else:  # CSV file
+                source_leads = []
+                with open(filepath, 'r', newline='', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        source_leads.append(row)
+            
+            # Add source type if not present
+            for lead in source_leads:
+                if "source" not in lead or not lead["source"]:
+                    lead["source"] = source_type
+            
+            all_leads.extend(source_leads)
+            logger.info(f"Added {len(source_leads)} leads from {source_type}")
+        except Exception as e:
+            logger.error(f"Error loading leads from {filepath}: {str(e)}")
+    
+    if not all_leads:
+        logger.warning("No leads found to process")
+        return 0
+    
+    logger.info(f"Total leads loaded: {len(all_leads)}")
+    
+    # Enrich and deduplicate
+    try:
+        # Filter by completeness if requested
+        if args.min_score:
+            min_score = float(args.min_score)
+            filtered_leads = filter_leads_by_completeness(all_leads, min_score)
+            logger.info(f"Filtered leads by completeness score >= {min_score}: {len(filtered_leads)} of {len(all_leads)} remaining")
+            all_leads = filtered_leads
+        
+        # Deduplicate leads
+        unique_leads = deduplicate_leads(all_leads)
+        logger.info(f"After deduplication: {len(unique_leads)} unique leads")
+        
+        # Save the enriched and deduplicated leads
+        output_file = os.path.join(args.output_dir, args.output_file)
+        
+        if output_file.endswith('.json'):
+            with open(output_file, 'w', encoding='utf-8') as f:
+                json.dump(unique_leads, f, indent=2)
+        else:  # CSV
+            _convert_leads_to_csv(unique_leads, output_file)
+        
+        logger.info(f"Saved {len(unique_leads)} enriched and deduplicated leads to {output_file}")
+        
+        return len(unique_leads)
+        
+    except Exception as e:
+        logger.error(f"Error during lead enrichment and deduplication: {str(e)}")
+        return 0
+
 def main():
     """Main entry point of the lead generator."""
     parser = argparse.ArgumentParser(description="Malaysian Lead Generator CLI")
     
     # Create argument groups for better organization
-    scraping_group = parser.add_argument_group("Scraping Options")
+    api_group = parser.add_argument_group("MCP-Powered API Options (Recommended)")
+    legacy_scraping_group = parser.add_argument_group("Legacy Scraping Options (Deprecated)")
     email_gen_group = parser.add_argument_group("Email Generation Options")
     email_send_group = parser.add_argument_group("Email Sending Options")
     general_group = parser.add_argument_group("General Options")
     
-    # Scraping options
-    scraping_group.add_argument("--use-yellowpages", action="store_true", help="Scrape from Yellow Pages Malaysia")
-    scraping_group.add_argument("--use-businesslist", action="store_true", help="Scrape from BusinessList.my")
-    scraping_group.add_argument("--use-gov-ministry", action="store_true", help="Scrape from government ministry websites")
-    scraping_group.add_argument("--use-university", action="store_true", help="Scrape from university websites")
-    scraping_group.add_argument("--limit", type=int, help="Limit the number of results to scrape")
-    scraping_group.add_argument("--category", type=str, help="Category to scrape from (for Yellow Pages/BusinessList)")
-    scraping_group.add_argument("--categories-file", type=str, help="File containing categories to scrape")
-    scraping_group.add_argument("--ministries-file", type=str, help="File containing ministry URLs to scrape")
-    scraping_group.add_argument("--universities-file", type=str, help="File containing university URLs to scrape")
-    scraping_group.add_argument("--delay", type=float, help="Delay between requests in seconds")
-    scraping_group.add_argument("--limit-sources", type=int, help="Limit the number of sources to scrape from each category")
+    # MCP-Powered API options (Recommended)
+    api_group.add_argument("--use-google-maps", action="store_true", help="Use Google Maps API for business data")
+    api_group.add_argument("--use-instagram", action="store_true", help="Use Instagram API for social media data")
+    api_group.add_argument("--use-web-browser", action="store_true", help="Use Web Browser API for website content")
+    api_group.add_argument("--search", type=str, help="Search query for data sources")
+    api_group.add_argument("--location", type=str, help="Location for Google Maps search (e.g., 'Kuala Lumpur')")
+    api_group.add_argument("--categories", type=str, help="Comma-separated business categories (for Google Maps)")
+    api_group.add_argument("--hashtags", type=str, help="Comma-separated hashtags (for Instagram)")
+    api_group.add_argument("--queries", type=str, help="Comma-separated search queries (for Web Browser)")
+    api_group.add_argument("--url", type=str, help="Specific URL to extract data from (for Web Browser)")
+    api_group.add_argument("--multi-source", action="store_true", help="Use multiple data sources and enrich leads")
+    api_group.add_argument("--min-score", type=float, default=0.3, help="Minimum completeness score for leads (0.0-1.0)")
+    
+    # Legacy scraping options (Deprecated)
+    legacy_scraping_group.add_argument("--use-yellowpages", action="store_true", help="Scrape from Yellow Pages Malaysia (DEPRECATED)")
+    legacy_scraping_group.add_argument("--use-businesslist", action="store_true", help="Scrape from BusinessList.my (DEPRECATED)")
+    legacy_scraping_group.add_argument("--use-gov-ministry", action="store_true", help="Scrape from government ministry websites (DEPRECATED)")
+    legacy_scraping_group.add_argument("--use-university", action="store_true", help="Scrape from university websites (DEPRECATED)")
+    legacy_scraping_group.add_argument("--yp-categories", type=str, help="Categories to scrape from Yellow Pages/BusinessList")
+    legacy_scraping_group.add_argument("--gov-websites", type=str, help="Government websites to scrape")
+    legacy_scraping_group.add_argument("--uni-websites", type=str, help="University websites to scrape")
+    legacy_scraping_group.add_argument("--max-pages-per-source", type=int, default=5, help="Maximum pages to scrape per source")
+    legacy_scraping_group.add_argument("--min-delay", type=float, default=2.0, help="Minimum delay between requests")
+    legacy_scraping_group.add_argument("--max-delay", type=float, default=5.0, help="Maximum delay between requests")
+    
+    # Common options
+    general_group.add_argument("--limit", type=int, help="Limit the number of results to collect")
+    general_group.add_argument("--limit-sources", type=int, help="Limit the number of sources to collect from")
+    general_group.add_argument("--output-dir", type=str, default="output", help="Directory to save output files")
+    general_group.add_argument("--output-file", type=str, default="all_leads.json", help="Name of combined output file")
+    general_group.add_argument("--import-to-db", action="store_true", help="Import leads to database")
+    general_group.add_argument("--log-level", type=str, default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Logging level")
     
     # Email generation options
     email_gen_group.add_argument("--generate-emails", action="store_true", help="Generate emails for leads")
@@ -548,12 +1123,6 @@ def main():
     email_send_group.add_argument("--use-package-selection", action="store_true", 
                                  help="Use intelligent package-based proposal selection")
     
-    # General options
-    general_group.add_argument("--output-dir", type=str, default="output", help="Directory to save output files")
-    general_group.add_argument("--output-file", type=str, default="all_leads.csv", help="Name of combined output file")
-    general_group.add_argument("--import-to-db", action="store_true", help="Import leads to database")
-    general_group.add_argument("--log-level", type=str, default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Logging level")
-    
     args = parser.parse_args()
     
     # Set up logging
@@ -562,23 +1131,77 @@ def main():
     # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
     
+    # Initialize API clients
+    try:
+        activate_clients()
+        logger.info("MCP-powered API clients activated")
+    except Exception as e:
+        logger.error(f"Error activating API clients: {str(e)}")
+        logger.error("Some data collection functions may not be available")
+    
     # Variable to track if we need to import leads
     leads_collected = False
-    combined_file = None
+    combined_file = os.path.join(args.output_dir, args.output_file)
     
-    # Scraping phase
-    if args.use_yellowpages or args.use_gov_ministry or args.use_university:
-        logger.info("Starting lead collection phase")
+    # Check if any data source is specified
+    mcp_sources_selected = args.use_google_maps or args.use_instagram or args.use_web_browser
+    legacy_sources_selected = args.use_yellowpages or args.use_gov_ministry or args.use_university or args.use_businesslist
+    
+    # If no specific source is selected, use Google Maps by default
+    if not mcp_sources_selected and not legacy_sources_selected:
+        logger.info("No specific data source selected, using Google Maps by default")
+        args.use_google_maps = True
+    
+    # Prioritize MCP-powered data sources
+    total_leads = 0
+    
+    if mcp_sources_selected:
+        logger.info("Starting data collection with MCP-powered data sources")
         
-        # Select sources to scrape if not specified
-        if not (args.use_yellowpages or args.use_gov_ministry or args.use_university):
-            logger.info("No specific source specified, defaulting to all sources")
-            args.use_yellowpages = args.use_gov_ministry = args.use_university = True
+        # If multi-source is specified, try to get data from all available sources
+        if args.multi_source:
+            logger.info("Running multi-source data collection")
+            
+            if not args.use_google_maps and not args.use_instagram and not args.use_web_browser:
+                # Enable all sources for multi-source collection
+                args.use_google_maps = args.use_instagram = args.use_web_browser = True
+            
+            if args.use_google_maps:
+                total_leads += run_google_maps_client(args, logger)
+            
+            if args.use_instagram:
+                total_leads += run_instagram_client(args, logger)
+            
+            if args.use_web_browser:
+                total_leads += run_web_browser_client(args, logger)
+            
+            # Enrich and deduplicate leads from all sources
+            total_leads = enrich_and_deduplicate_leads(args, logger)
+            
+        else:
+            # Run individual data sources
+            if args.use_google_maps:
+                total_leads += run_google_maps_client(args, logger)
+            
+            if args.use_instagram:
+                total_leads += run_instagram_client(args, logger)
+            
+            if args.use_web_browser:
+                total_leads += run_web_browser_client(args, logger)
+            
+            # If multiple sources were used, combine them
+            if sum([args.use_google_maps, args.use_instagram, args.use_web_browser]) > 1:
+                total_leads = enrich_and_deduplicate_leads(args, logger)
         
-        # Scrape selected sources
-        total_leads = 0
+        logger.info(f"MCP-powered data collection completed. Total leads: {total_leads}")
+        leads_collected = True
+    
+    # Fallback to legacy scrapers if specifically requested
+    if legacy_sources_selected:
+        logger.warning("Using deprecated scraping methods. Consider migrating to MCP-powered data sources.")
+        logger.info("Starting legacy scraper data collection")
         
-        if args.use_yellowpages:
+        if args.use_yellowpages or args.use_businesslist:
             total_leads += run_yellow_pages_scraper(args, logger)
         
         if args.use_gov_ministry:
@@ -587,13 +1210,15 @@ def main():
         if args.use_university:
             total_leads += run_university_scraper(args, logger)
         
-        # Combine results into a single file
-        combined_file = os.path.join(args.output_dir, args.output_file)
-        combine_csv_files(args.output_dir, combined_file, logger)
+        # Combine results from legacy scrapers
+        if leads_collected:
+            # We already have MCP data, so merge with legacy data
+            total_leads = enrich_and_deduplicate_leads(args, logger)
+        else:
+            # Only legacy data, use old combination method
+            combine_csv_files(args.output_dir, combined_file, logger)
         
-        logger.info(f"Lead generation completed. Total leads collected: {total_leads}")
-        logger.info(f"Combined leads saved to: {combined_file}")
-        
+        logger.info(f"Legacy data collection completed. Total leads: {total_leads}")
         leads_collected = True
     
     # Import leads to database if needed

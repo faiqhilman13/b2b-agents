@@ -9,13 +9,16 @@ import logging
 from pathlib import Path
 from typing import Dict, Any
 
+# Set up logging
+logger = logging.getLogger(__name__)
+
 # Import secure configuration if available
 try:
     from .secure_config import secure_config
     SECURE_CONFIG_AVAILABLE = True
 except ImportError:
     SECURE_CONFIG_AVAILABLE = False
-    logging.warning("Secure configuration module not found. Falling back to environment variables.")
+    logger.warning("Secure configuration module not found. Falling back to environment variables.")
 
 # Path setup
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -46,7 +49,7 @@ def load_template(filename):
                 return json.load(f)
         return None
     except Exception as e:
-        logging.error(f"Error loading template {filename}: {e}")
+        logger.error(f"Error loading template {filename}: {e}")
         return None
 
 # Template loading

@@ -16,6 +16,9 @@ from pathlib import Path
 from typing import Dict, Any, Optional, Union
 from datetime import datetime
 
+# Set up logging
+logger = logging.getLogger(__name__)
+
 # Try to import cryptography libraries, otherwise use fallback
 try:
     from cryptography.fernet import Fernet
@@ -24,10 +27,7 @@ try:
     ENCRYPTION_AVAILABLE = True
 except ImportError:
     ENCRYPTION_AVAILABLE = False
-    logging.warning("Cryptography package not installed. Secure encryption unavailable.")
-
-# Configure logging
-logger = logging.getLogger(__name__)
+    logger.warning("Cryptography package not installed. Secure encryption unavailable.")
 
 # Path configuration
 BASE_DIR = Path(__file__).resolve().parent.parent.parent

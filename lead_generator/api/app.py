@@ -15,13 +15,20 @@ from jose import JWTError, jwt
 import json
 import logging
 
+# Get the project root directory
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+LOG_FILE = os.path.join(PROJECT_ROOT, "lead_generator", "logs", "api.log")
+
+# Ensure log directory exists
+os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler("lead_generator/logs/api.log")
+        logging.FileHandler(LOG_FILE)
     ]
 )
 logger = logging.getLogger(__name__)
@@ -33,17 +40,43 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# Add CORS middleware
+# Define allowed origins from environment variable or use defaults
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "").split(",")
+if not ALLOWED_ORIGINS or ALLOWED_ORIGINS == [""]:
+    # Default allowed origins
+    ALLOWED_ORIGINS = [
+        "http://localhost:3000",     # Local development frontend
+        "http://localhost:8080",     # Local development alternative
+        "http://localhost:5173",     # Vite development server
+        "http://localhost:5174",     # Vite fallback port
+        "http://localhost:5175",     # Additional Vite port
+        "https://lead-generator.example.com",  # Production frontend
+    ]
+    
+logger.info(f"CORS allowed origins: {ALLOWED_ORIGINS}")
+
+# Add CORS middleware with secure configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # Local development frontend
-        "http://localhost:8080",  # Local development alternative
-        "https://lead-generator.example.com",  # Production frontend
-    ],  # Specific origins instead of wildcard "*"
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],  # Specific methods instead of "*"
-    allow_headers=["Authorization", "Content-Type"],  # Specific headers instead of "*"
+    allow_origins=ALLOWED_ORIGINS,  # Restrict to specific origins only
+    allow_credentials=True,          # Allow cookies to be sent with requests
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicitly enumerate allowed methods
+    allow_headers=[
+        "Authorization", 
+        "Content-Type", 
+        "Accept", 
+        "Origin", 
+        "X-Requested-With",
+        "Access-Control-Allow-Origin",
+        "Access-Control-Allow-Credentials",
+    ],  # Explicitly enumerate allowed headers
+    expose_headers=[
+        "Content-Length", 
+        "Content-Type", 
+        "X-Pagination-Total-Count", 
+        "X-Pagination-Total-Pages"
+    ],  # Headers that can be exposed to the browser
+    max_age=600,  # Cache preflight requests for 10 minutes
 )
 
 # Security configuration
@@ -92,7 +125,7 @@ fake_users_db = {
     "admin": {
         "username": "admin",
         "email": "admin@example.com",
-        "hashed_password": "fakehashedsecret",  # In production, use proper hashing
+        "hashed_password": "admin",  # Changed to match expected credentials
         "disabled": False,
     }
 }
@@ -103,7 +136,8 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 # Helper functions
 def verify_password(plain_password, hashed_password):
     # In production, use proper password verification
-    return plain_password == "secret" and hashed_password == "fakehashedsecret"
+    # Simplified for development to accept admin/admin
+    return plain_password == hashed_password
 
 def get_user(db, username: str):
     if username in db:

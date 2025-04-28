@@ -4,14 +4,18 @@ This module provides middleware components for the API layer, including:
 - Rate limiting
 - Request logging
 - Error handling
+- CSRF protection
 """
 
 import time
-from typing import Dict, Callable, Awaitable, Optional, Tuple
+from typing import Dict, Callable, Awaitable, Optional, Tuple, Set
 from datetime import datetime, timedelta
 import logging
+import secrets
+import os
 from fastapi import FastAPI, Request, Response, status, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 # Configure logging
@@ -265,6 +269,102 @@ class ErrorHandler(BaseHTTPMiddleware):
             )
 
 
+class CSRFMiddleware(BaseHTTPMiddleware):
+    """Middleware for CSRF protection.
+    
+    This middleware checks for a valid CSRF token in requests that modify data.
+    The token should be sent in the X-CSRF-Token header. The token is generated
+    and stored in a cookie.
+    """
+    
+    def __init__(
+        self, 
+        app: FastAPI, 
+        cookie_name: str = "csrf_token",
+        header_name: str = "X-CSRF-Token",
+        methods: Set[str] = {"POST", "PUT", "DELETE", "PATCH"},
+        token_expiry_minutes: int = 60
+    ):
+        """Initialize CSRF protection middleware.
+        
+        Args:
+            app: FastAPI application
+            cookie_name: Name of the cookie storing the CSRF token
+            header_name: Name of the header containing the CSRF token
+            methods: HTTP methods that require CSRF protection
+            token_expiry_minutes: Token expiration time in minutes
+        """
+        super().__init__(app)
+        self.cookie_name = cookie_name
+        self.header_name = header_name
+        self.methods = methods
+        self.token_expiry_minutes = token_expiry_minutes
+        self.exempt_paths = {"/token", "/auth/token"}  # Login endpoints don't need CSRF protection
+    
+    async def dispatch(self, request: Request, call_next: Callable):
+        """Process the request through the middleware.
+        
+        Args:
+            request: The incoming request
+            call_next: The next middleware or route handler
+            
+        Returns:
+            The response from the next handler
+        """
+        # Check if request method requires CSRF validation
+        if request.method in self.methods and request.url.path not in self.exempt_paths:
+            # Get CSRF token from header
+            csrf_token_header = request.headers.get(self.header_name)
+            
+            # Get CSRF token from cookie
+            csrf_token_cookie = request.cookies.get(self.cookie_name)
+            
+            # Validate token
+            if not csrf_token_header or not csrf_token_cookie or csrf_token_header != csrf_token_cookie:
+                logger.warning(f"CSRF validation failed for {request.method} {request.url.path}")
+                return JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={"detail": "CSRF token validation failed"}
+                )
+        
+        # Process the request
+        response = await call_next(request)
+        
+        # For GET requests and responses to /token endpoint, generate a new CSRF token and set the cookie
+        is_login = request.url.path in self.exempt_paths
+        if request.method == "GET" or is_login:
+            response = await self._set_csrf_cookie(response)
+        
+        return response
+    
+    async def _set_csrf_cookie(self, response: Response) -> Response:
+        """Set CSRF token cookie.
+        
+        Args:
+            response: The response object
+            
+        Returns:
+            Response with CSRF cookie added
+        """
+        # Generate random token
+        token = secrets.token_hex(32)
+        
+        # Calculate expiry time
+        expires = datetime.utcnow() + timedelta(minutes=self.token_expiry_minutes)
+        
+        # Set cookie (HTTP-only: False so JavaScript can read it for headers)
+        response.set_cookie(
+            key=self.cookie_name,
+            value=token,
+            httponly=False,  # JavaScript needs to read it
+            secure=True,     # HTTPS only
+            samesite="strict",  # Only sent in same-site requests
+            expires=expires.strftime("%a, %d %b %Y %H:%M:%S GMT")
+        )
+        
+        return response
+
+
 def add_middleware(app: FastAPI, rate_limit: int = 60, debug: bool = False) -> None:
     """
     Add all middleware to the FastAPI application.
@@ -281,4 +381,27 @@ def add_middleware(app: FastAPI, rate_limit: int = 60, debug: bool = False) -> N
     app.add_middleware(ErrorHandler, debug=debug)
     
     # Add rate limiter
-    app.add_middleware(RateLimiter, requests_per_minute=rate_limit) 
+    app.add_middleware(RateLimiter, requests_per_minute=rate_limit)
+    
+    # Add CSRF protection
+    app.add_middleware(CSRFMiddleware)
+    
+    # Add trusted host middleware 
+    trusted_hosts = os.getenv("TRUSTED_HOSTS", "").split(",")
+    if not trusted_hosts or trusted_hosts == [""]:
+        # Default to allowing all hosts in development
+        if debug:
+            trusted_hosts = ["*"]
+        # In production, should be configured explicitly
+        else:
+            trusted_hosts = ["localhost", "lead-generator.example.com"]
+            
+    # Add trusted host middleware if not in debug mode
+    if not debug:
+        app.add_middleware(
+            TrustedHostMiddleware,
+            allowed_hosts=trusted_hosts
+        )
+    
+    logger.info(f"Middlewares configured. Rate limit: {rate_limit} req/min. Debug mode: {debug}")
+    logger.info(f"Trusted hosts: {trusted_hosts}") 
